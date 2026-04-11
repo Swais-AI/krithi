@@ -1,155 +1,106 @@
-# SWAIS Deployment Issues — swais.in
-> Identified on: 2026-04-10
+# 🚀 SWAIS Deployment Issues Report
+**Site:** https://swais.in &nbsp;|&nbsp; **Date:** 2026-04-10 &nbsp;|&nbsp; **Environment:** Production (AWS EC2)
 
 ---
 
-## 🔴 ISSUE 1 — Google OAuth redirecting to localhost:3001 after login
-
-### What's happening
-After selecting a Google account, users are being sent to:
-```
-http://localhost:3001/dashboard
-```
-instead of `https://swais.in/dashboard`
-
-### Root Cause
-In `backend/app/routers/auth.py`, after OAuth succeeds the backend reads
-`settings.FRONTEND_URL` to build the redirect URL:
-```python
-redirect_to = f"{frontend}/dashboard"   # line 90
-redirect_to = f"{frontend}/register"    # line 86
-redirect_to = f"{frontend}/pending"     # line 88
-```
-On the EC2 server, the `backend/.env` file still has:
-```
-FRONTEND_URL=http://localhost:3001     ← WRONG
-```
-This was the local development value (port 3001 was used locally because 3000 was taken).
-
-### Fix (on EC2)
-SSH into EC2, open `/path-to-project/backend/.env` and change:
-```
-FRONTEND_URL=https://swais.in
-```
-Then restart the backend service:
-```bash
-sudo systemctl restart swais-backend
-```
+## 🔴 Critical Issues
 
 ---
 
-## 🔴 ISSUE 2 — api.swais.in is completely unreachable
+### Issue 1 — Google OAuth Redirecting to localhost After Login
 
-### What's happening
-`https://api.swais.in` and `https://api.swais.in/health` both return
-**ECONNREFUSED** — the backend API cannot be reached from the internet.
+> **Severity:** 🔴 Critical &nbsp;|&nbsp; **Impact:** All users cannot log in
 
-### Root Cause (one or more of the following)
-- Nginx on EC2 has no server block for the `api.swais.in` subdomain
-- DNS: `api.swais.in` A record is missing or not pointing to the EC2 IP
-- FastAPI service (`swais-backend`) is not running
-- SSL certificate not issued for `api.swais.in`
+**What is happening:**
+After selecting a Google account, users are being sent to `http://localhost:3001/dashboard` instead of `https://swais.in/dashboard`. The login flow appears to work but users land on a blank browser error screen.
 
-### Fix Steps (on EC2)
+**Where to fix:**
+The `FRONTEND_URL` environment variable in the backend `.env` file on the EC2 server still contains the local development value (`http://localhost:3001`). This value controls where the backend redirects users after OAuth succeeds.
 
-**Step 1 — Check if FastAPI is running:**
-```bash
-sudo systemctl status swais-backend
-sudo journalctl -u swais-backend -n 50   # view logs
-sudo systemctl start swais-backend
-sudo systemctl enable swais-backend      # auto-start on reboot
-```
-
-**Step 2 — Check if port 5000 is listening:**
-```bash
-sudo ss -tlnp | grep 5000
-```
-
-**Step 3 — Add Nginx config for api.swais.in:**
-```nginx
-server {
-    listen 80;
-    server_name api.swais.in;
-
-    location / {
-        proxy_pass         http://127.0.0.1:5000;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-    }
-}
-```
-Save to `/etc/nginx/sites-available/api.swais.in`, then:
-```bash
-sudo ln -s /etc/nginx/sites-available/api.swais.in /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-**Step 4 — Issue SSL certificate for subdomain:**
-```bash
-sudo certbot --nginx -d api.swais.in
-```
-
-**Step 5 — Verify DNS:**
-Check that `api.swais.in` has an A record pointing to the same EC2 public IP as `swais.in`.
-```bash
-nslookup api.swais.in
-```
+> 📁 **File to change:** `backend/.env` on the EC2 server
+> 🔧 **Variable:** `FRONTEND_URL`
+> ✅ **Expected value:** `https://swais.in`
 
 ---
 
-## 🟡 ISSUE 3 — Dashboard and /pending stuck on loading
+### Issue 2 — api.swais.in is Unreachable
 
-### What's happening
-- `/dashboard` shows "Loading session..." and never loads
-- `/pending` shows "Checking account status..." and never resolves
+> **Severity:** 🔴 Critical &nbsp;|&nbsp; **Impact:** Entire backend is inaccessible — login, dashboard, all API calls fail
 
-### Root Cause
-Both pages call the backend API (`/user/me`, `/functions`) to verify the
-user's JWT token and load data. Since `api.swais.in` is down (Issue 2),
-these calls silently fail and the pages hang in a loading state.
+**What is happening:**
+`https://api.swais.in` and `https://api.swais.in/health` both return a connection refused error. The FastAPI backend cannot be reached from the internet at all.
 
-### Fix
-Fixing Issue 2 (making `api.swais.in` reachable) will automatically resolve this.
+**Where to fix:**
+
+| Check | Location |
+|-------|----------|
+| Is the FastAPI service running? | EC2 → `systemd` service `swais-backend` |
+| Does Nginx route `api.swais.in`? | EC2 → Nginx sites-enabled config |
+| Does `api.swais.in` have an SSL certificate? | EC2 → Let's Encrypt / Certbot |
+| Does DNS point `api.swais.in` to EC2? | Domain registrar / Route 53 DNS records |
+
+> 📁 **Files to check on EC2:** Nginx config, systemd service file, DNS A record for `api.swais.in`
+
+---
+
+## 🟡 Secondary Issues
+
+---
+
+### Issue 3 — Dashboard Stuck on Loading Screen
+
+> **Severity:** 🟡 Medium &nbsp;|&nbsp; **Impact:** Users who do log in cannot access the dashboard
+
+**What is happening:**
+`/dashboard` shows the loading screen indefinitely and never loads the page content. Similarly `/pending` shows "Checking account status..." and never resolves.
+
+**Root cause:**
+Both pages make API calls to `api.swais.in` to verify the user's session. Since the backend is unreachable (Issue 2), these calls time out silently and the UI stays in the loading state forever.
+
+> ✅ **This will be automatically resolved once Issue 2 is fixed.**
+
+---
+
+### Issue 4 — Production Environment Variables Not Set
+
+> **Severity:** 🟡 Medium &nbsp;|&nbsp; **Impact:** Misconfigured API URLs, broken OAuth, wrong CORS origins
+
+**What is happening:**
+The `.env` files on the EC2 server appear to contain local development values instead of production values.
+
+**Where to fix:**
+
+| File | Location on EC2 |
+|------|----------------|
+| Backend environment config | `backend/.env` |
+| Frontend environment config | `.env.production` |
+
+> 📁 **Both files must be created/updated directly on the EC2 server — they are not committed to Git for security reasons.**
 
 ---
 
 ## ✅ What Is Working
 
-| Item                          | Status        |
-|-------------------------------|---------------|
-| `https://swais.in` homepage   | ✅ Loading     |
-| `https://swais.in/login`      | ✅ Page loads  |
-| Frontend (Next.js on EC2)     | ✅ Running     |
-| Favicon / logo                | ✅ Showing     |
-| HTTPS on swais.in             | ✅ SSL active  |
+| Component | Status |
+|-----------|--------|
+| `https://swais.in` — Homepage | ✅ Loading correctly |
+| `https://swais.in/login` — Login page | ✅ UI renders correctly |
+| Frontend server (Next.js on EC2) | ✅ Running |
+| HTTPS / SSL on `swais.in` | ✅ Active |
+| SWAIS favicon and branding | ✅ Visible |
+| Google Sign-In button appears | ✅ Visible (but OAuth flow fails — see Issue 1) |
 
 ---
 
-## Summary — Priority Order
+## 📋 Summary Table
 
-| Priority | Issue                                   | Fix Location        |
-|----------|-----------------------------------------|---------------------|
-| 🔴 P1    | OAuth redirecting to localhost:3001     | Change `FRONTEND_URL` in `backend/.env` on EC2 |
-| 🔴 P1    | `api.swais.in` unreachable              | Nginx config + SSL cert + DNS + start backend service |
-| 🟡 P2    | Dashboard/pending stuck loading         | Auto-fixed once P1 above are resolved |
+| # | Issue | Severity | Fix Location |
+|---|-------|----------|-------------|
+| 1 | OAuth redirects to localhost | 🔴 Critical | `backend/.env` on EC2 — `FRONTEND_URL` variable |
+| 2 | `api.swais.in` unreachable | 🔴 Critical | EC2 — Nginx config, systemd service, DNS, SSL cert |
+| 3 | Dashboard/pending stuck loading | 🟡 Medium | Auto-resolved when Issue 2 is fixed |
+| 4 | Production env vars not set | 🟡 Medium | EC2 — `backend/.env` + `.env.production` |
 
 ---
 
-## Quick Fix Summary (All commands in one go)
-
-```bash
-# 1. Fix FRONTEND_URL
-sed -i 's|FRONTEND_URL=.*|FRONTEND_URL=https://swais.in|' /path/to/backend/.env
-
-# 2. Restart backend
-sudo systemctl restart swais-backend
-
-# 3. Add Nginx subdomain config (edit file first, then)
-sudo nginx -t && sudo systemctl reload nginx
-
-# 4. Issue SSL for subdomain
-sudo certbot --nginx -d api.swais.in
-```
+*Report generated by SWAIS Development Team*
