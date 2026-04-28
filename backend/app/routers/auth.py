@@ -111,6 +111,7 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
     # In production, scope the cookie to .swais.in so both swais.in and api.swais.in can read it
     if settings.COOKIE_DOMAIN:
         cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+    logger.error(f"Setting cookie with domain: {settings.COOKIE_DOMAIN!r}, redirect to: {redirect_to}")
     response.set_cookie(**cookie_kwargs)
     return response
 
