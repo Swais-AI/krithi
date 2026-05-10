@@ -12,7 +12,7 @@ export default function DashboardPage() {
   useEffect(() => {
     // Only fetch functions if we have a resolved user type, preventing stale data on mount if Modal is open
     if (industry || user?.user_type) {
-      fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000') + '/functions', {
+      fetch((process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000') + '/functions', {
         credentials: 'include'
       })
       .then(res => res.json())

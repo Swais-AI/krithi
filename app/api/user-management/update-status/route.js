@@ -11,13 +11,15 @@ export async function PUT(request) {
     }
     
     // Forward request to FastAPI backend (auth handled by FastAPI)
+    // Get all cookies from the incoming request
+    const cookies = request.headers.get('cookie') || '';
+    
     const response = await fetch(`${BACKEND_URL}/admin/users/update-status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': request.headers.get('cookie') || '',
+        'Cookie': cookies,
       },
-      credentials: 'include',
       body: JSON.stringify({ userIds, newStatus }),
     });
     

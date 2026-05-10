@@ -13,12 +13,14 @@ export async function GET(request) {
     if (search) backendUrl.searchParams.set('search', search);
     if (status) backendUrl.searchParams.set('status', status);
     
+    // Get all cookies from the incoming request
+    const cookies = request.headers.get('cookie') || '';
+    
     const response = await fetch(backendUrl.toString(), {
       method: 'GET',
       headers: {
-        'Cookie': request.headers.get('cookie') || '',
+        'Cookie': cookies,
       },
-      credentials: 'include',
     });
     
     if (!response.ok) {

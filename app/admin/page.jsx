@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
 export default function AdminHomePage() {
   const [admin, setAdmin] = useState(null);

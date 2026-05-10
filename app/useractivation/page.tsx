@@ -29,7 +29,8 @@ export default function UserActivationPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/user-management?status=P', { credentials: 'include' });
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+      const res = await fetch(`${backendUrl}/admin/users?status=P`, { credentials: 'include' });
       const data = await res.json();
       if (data.success) setUsers(data.users);
     } catch (e) {
@@ -51,7 +52,8 @@ export default function UserActivationPage() {
     if (ids.length === 0) return flash('Please select at least one user', 'error');
     setBusy(true);
     try {
-      const res = await fetch('/api/user-management/update-status', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+      const res = await fetch(`${backendUrl}/admin/users/update-status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

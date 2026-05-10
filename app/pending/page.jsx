@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import StandardHeader from '../../components/StandardHeader';
 import LoadingScreen from '../../components/LoadingScreen';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
 export default function PendingPage() {
   const router = useRouter();

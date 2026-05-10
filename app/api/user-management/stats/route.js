@@ -5,12 +5,14 @@ const BACKEND_URL = process.env.BACKEND_API_URL || (process.env.NODE_ENV === 'pr
 export async function GET(request) {
   try {
     // Forward request to FastAPI backend (auth handled by FastAPI)
+    // Get all cookies from the incoming request
+    const cookies = request.headers.get('cookie') || '';
+    
     const response = await fetch(`${BACKEND_URL}/admin/users/stats`, {
       method: 'GET',
       headers: {
-        'Cookie': request.headers.get('cookie') || '',
+        'Cookie': cookies,
       },
-      credentials: 'include',
     });
     
     if (!response.ok) {

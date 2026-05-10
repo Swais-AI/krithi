@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import LoadingScreen from '../../components/LoadingScreen';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 const SUPER_ADMIN_ROLES = ['SUPER_ADMIN', 'HEAD'];
 
 export default function AdminLayout({ children }) {

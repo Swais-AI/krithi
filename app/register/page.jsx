@@ -7,7 +7,7 @@ import StandardHeader from '../../components/StandardHeader';
 import LoadingScreen from '../../components/LoadingScreen';
 
 const INDUSTRIES = ['LOGISTICS', 'WAREHOUSING', 'ECOMMERCE', 'MANUFACTURING', 'BANKING', 'HEALTHCARE', 'EDUTECH'];
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
 const STEPS = ['Personal Info', 'Industry', 'Confirm'];
 
