@@ -598,7 +598,7 @@ export default function SaraswatiPage() {
     <div className="flex flex-wrap justify-center gap-5">
 
       <a
-        href="mailto:connect@swais.in"
+        href="mailto:murty.varanasi@swais.in"
         className="bg-[#E8642A] hover:bg-[#1A1040] text-white px-8 py-4 rounded-md text-sm tracking-wide transition duration-300"
       >
         Request a Demo →
