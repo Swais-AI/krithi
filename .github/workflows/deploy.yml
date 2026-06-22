@@ -25,6 +25,12 @@ jobs:
 
             echo ">>> Backend setup..."
             cd /home/ubuntu/swais-website/backend
+
+            if [ ! -d "venv" ]; then
+                echo "Creating virtual environment..."
+                python3 -m venv venv
+            fi
+
             source venv/bin/activate
             pip install -r requirements.txt
             deactivate
@@ -40,8 +46,17 @@ jobs:
             npm run build
 
             echo ">>> Restarting apps..."
-            pm2 restart swais-backend
-            pm2 restart swais-frontend
+
+            cd /home/ubuntu/swais-website/backend
+            pm2 describe swais-backend > /dev/null 2>&1 \
+              && pm2 restart swais-backend \
+              || pm2 start "python run.py" --name swais-backend
+
+            cd /home/ubuntu/swais-website
+            pm2 describe swais-frontend > /dev/null 2>&1 \
+              && pm2 restart swais-frontend \
+              || pm2 start "npm start" --name swais-frontend
+
             pm2 save
 
             echo "Deploy complete!"
