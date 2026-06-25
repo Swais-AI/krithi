@@ -4,47 +4,39 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Pencil, Trash2, Search, X,
-  Users as UsersIcon, UserCheck, UserX,
-  BookOpen
+  CheckCircle, XCircle, Users, UserCheck, UserX, BookOpen
 } from 'lucide-react';
 
 interface Student {
   id: string;
-  admissionNo: string;
+  student_id: string;
   name: string;
   class: string;
   section: string;
-  rollNo: string;
-  parentName: string;
-  parentPhone: string;
-  parentEmail: string;
+  parentname: string;
   contact: string;
   email: string;
-  guardianName: string;
-  guardianPhone: string;
-  status: 'active' | 'inactive';
+  status: 'Active' | 'Inactive';
 }
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState<'name' | 'id' | 'class'>('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'add' | 'modify'>('add');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [validationError, setValidationError] = useState('');
   const [formData, setFormData] = useState({
-    admissionNo: '',
+    student_id: '',
     name: '',
     class: '',
     section: '',
-    rollNo: '',
-    parentName: '',
-    parentPhone: '',
-    parentEmail: '',
+    parentname: '',
     contact: '',
     email: '',
-    guardianName: '',
-    guardianPhone: ''
+    status: 'Active'
   });
 
   useEffect(() => {
@@ -52,80 +44,83 @@ export default function StudentsPage() {
   }, []);
 
   const fetchStudents = async () => {
-    setLoading(true);
     try {
       const response = await fetch('/api/students');
       const data = await response.json();
-      if (data.success) {
-        setStudents(data.students);
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setStudents(data);
+      } else {
+        console.error('Expected array but got:', data);
+        setStudents([]);
       }
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching students:', error);
-    } finally {
+      setStudents([]);
       setLoading(false);
     }
   };
 
-  const validateEmail = (email: string): boolean => {
-    if (!email) return true;
-    return email.toLowerCase().endsWith('@gmail.com');
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      setValidationError('Student Name is required');
+      return false;
+    }
+    if (!formData.student_id.trim()) {
+      setValidationError('Student ID is required');
+      return false;
+    }
+    if (formData.email && !formData.email.includes('@')) {
+      setValidationError('Please enter a valid email address');
+      return false;
+    }
+    setValidationError('');
+    return true;
   };
 
   const handleAdd = async () => {
-    if (!formData.name) {
-      alert('Please fill Student Name');
-      return;
-    }
-    
-    if (formData.email && !validateEmail(formData.email)) {
-      alert('Student Email must end with @gmail.com');
-      return;
-    }
-    
-    if (formData.parentEmail && !validateEmail(formData.parentEmail)) {
-      alert('Parent Email must end with @gmail.com');
-      return;
-    }
-    
+    if (!validateForm()) return;
     try {
       const response = await fetch('/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, status: 'active' })
+        body: JSON.stringify(formData)
       });
-      const data = await response.json();
-      if (data.success) {
-        await fetchStudents();
+      if (response.ok) {
+        fetchStudents();
         setIsModalOpen(false);
         resetForm();
       } else {
-        alert('Error: ' + data.error);
+        const error = await response.json();
+        setValidationError(error.error || 'Failed to add student');
       }
     } catch (error) {
       console.error('Error adding student:', error);
-      alert('Error adding student');
+      setValidationError('Failed to add student');
     }
   };
 
   const handleModify = async () => {
+    if (!validateForm()) return;
     if (selectedStudent) {
       try {
-        const response = await fetch(`/api/students/${selectedStudent.id}`, {
+        const response = await fetch('/api/students', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify({ ...formData, id: selectedStudent.id })
         });
-        const data = await response.json();
-        if (data.success) {
-          await fetchStudents();
+        if (response.ok) {
+          fetchStudents();
           setIsModalOpen(false);
           resetForm();
         } else {
-          alert('Error: ' + data.error);
+          const error = await response.json();
+          setValidationError(error.error || 'Failed to update student');
         }
       } catch (error) {
-        console.error('Error modifying student:', error);
-        alert('Error modifying student');
+        console.error('Error updating student:', error);
+        setValidationError('Failed to update student');
       }
     }
   };
@@ -133,197 +128,297 @@ export default function StudentsPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this student?')) {
       try {
-        await fetch(`/api/students/${id}`, { method: 'DELETE' });
-        await fetchStudents();
+        await fetch(`/api/students?id=${id}`, { method: 'DELETE' });
+        fetchStudents();
       } catch (error) {
         console.error('Error deleting student:', error);
       }
     }
   };
 
-  const handleToggleStatus = async (id: string) => {
-    const student = students.find(s => s.id === id);
-    if (student) {
-      const newStatus = student.status === 'active' ? 'inactive' : 'active';
-      try {
-        await fetch(`/api/students/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus })
-        });
-        await fetchStudents();
-      } catch (error) {
-        console.error('Error toggling status:', error);
-      }
+  const handleToggleStatus = async (student: Student) => {
+    const newStatus = student.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await fetch('/api/students', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...student, status: newStatus })
+      });
+      fetchStudents();
+    } catch (error) {
+      console.error('Error updating status:', error);
     }
   };
 
   const resetForm = () => {
     setFormData({
-      admissionNo: '', name: '', class: '', section: '', rollNo: '',
-      parentName: '', parentPhone: '', parentEmail: '',
-      contact: '', email: '', guardianName: '', guardianPhone: ''
+      student_id: '',
+      name: '',
+      class: '',
+      section: '',
+      parentname: '',
+      contact: '',
+      email: '',
+      status: 'Active'
     });
     setSelectedStudent(null);
+    setValidationError('');
   };
 
   const openModal = (type: 'add' | 'modify', student?: Student) => {
     setModalType(type);
-    if (type === 'modify' && student) {
+    setValidationError('');
+    if (type === 'add') {
+      resetForm();
+    } else if (type === 'modify' && student) {
       setSelectedStudent(student);
       setFormData({
-        admissionNo: student.admissionNo || '',
+        student_id: student.student_id || student.id,
         name: student.name,
         class: student.class || '',
         section: student.section || '',
-        rollNo: student.rollNo || '',
-        parentName: student.parentName || '',
-        parentPhone: student.parentPhone || '',
-        parentEmail: student.parentEmail || '',
+        parentname: student.parentname || '',
         contact: student.contact || '',
         email: student.email || '',
-        guardianName: student.guardianName || '',
-        guardianPhone: student.guardianPhone || ''
+        status: student.status || 'Active'
       });
     }
     setIsModalOpen(true);
   };
 
-  const filteredStudents = students.filter(s => 
-    (s.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.class?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (s.section?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (s.parentName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+  // Safe filtering - only if students is an array
+  const filteredStudents = Array.isArray(students) ? students.filter(s => {
+    const term = searchTerm.toLowerCase();
+    if (searchType === 'name') return s.name?.toLowerCase().includes(term);
+    if (searchType === 'id') return s.student_id?.toLowerCase().includes(term);
+    if (searchType === 'class') return s.class?.toLowerCase().includes(term);
+    return true;
+  }) : [];
 
-  const stats = [
-    { label: 'Total Students', value: students.length, icon: UsersIcon, color: 'from-blue-500 to-cyan-500' },
-    { label: 'Active Students', value: students.filter(s => s.status === 'active').length, icon: UserCheck, color: 'from-green-500 to-emerald-500' },
-    { label: 'Inactive Students', value: students.filter(s => s.status === 'inactive').length, icon: UserX, color: 'from-orange-500 to-red-500' },
-  ];
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-64"><div className="text-white/60">Loading students...</div></div>;
-  }
+  const stats = {
+    total: Array.isArray(students) ? students.length : 0,
+    active: Array.isArray(students) ? students.filter(s => s.status === 'Active').length : 0,
+    inactive: Array.isArray(students) ? students.filter(s => s.status === 'Inactive').length : 0,
+  };
 
   return (
-    <div>
-      <motion.div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-          <BookOpen className="w-10 h-10 text-blue-400" />
-          Student Management
-        </h1>
-        <p className="text-white/60">Manage all students, track their progress, and update records</p>
-      </motion.div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+            <BookOpen className="w-8 h-8 text-blue-400" />
+            Student Management
+          </h1>
+          <p className="text-white/60">Manage all students, track their progress, and update records</p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {stats.map((stat, idx) => (
-          <div key={idx} className={`bg-gradient-to-r ${stat.color} rounded-2xl p-6 shadow-xl`}>
-            <div className="flex items-center justify-between">
-              <div><p className="text-white/80 text-sm">{stat.label}</p><p className="text-white text-4xl font-bold mt-2">{stat.value}</p></div>
-              <stat.icon className="w-12 h-12 text-white/30" />
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-6">
+            <p className="text-white/80 text-sm">Total Students</p>
+            <p className="text-white text-4xl font-bold">{stats.total}</p>
+            <p className="text-white/60 text-sm mt-2">Enrolled this year</p>
           </div>
-        ))}
-      </div>
+          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6">
+            <p className="text-white/80 text-sm">Active Students</p>
+            <p className="text-white text-4xl font-bold">{stats.active}</p>
+            <p className="text-white/60 text-sm mt-2">Currently attending</p>
+          </div>
+          <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-6">
+            <p className="text-white/80 text-sm">Inactive Students</p>
+            <p className="text-white text-4xl font-bold">{stats.inactive}</p>
+            <p className="text-white/60 text-sm mt-2">Not currently enrolled</p>
+          </div>
+        </div>
 
-      <div className="flex gap-4 mb-8">
-        <button onClick={() => openModal('add')} className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2">
-          <Plus size={20} /> Add Student
-        </button>
-        <button onClick={() => {
-          if (filteredStudents.length === 1) openModal('modify', filteredStudents[0]);
-          else if (filteredStudents.length > 0) {
+        <div className="flex flex-wrap gap-4 mb-6">
+          <button onClick={() => openModal('add')} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
+            <Plus size={18} /> Add Student
+          </button>
+          <button onClick={() => {
             const id = prompt('Enter Student ID to modify:');
-            const student = students.find(s => s.id === id);
+            const student = students.find(s => s.student_id === id || s.id === id);
             if (student) openModal('modify', student);
             else alert('Student not found!');
-          } else alert('No students available');
-        }} className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold flex items-center gap-2">
-          <Pencil size={20} /> Modify Student
-        </button>
+          }} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
+            <Pencil size={18} /> Modify Student
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex-1 min-w-[200px]">
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+            />
+          </div>
+          <select
+            value={searchType}
+            onChange={(e) => setSearchType(e.target.value as any)}
+            className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+          >
+            <option value="name">Search by Name</option>
+            <option value="id">Search by ID</option>
+            <option value="class">Search by Class</option>
+          </select>
+        </div>
+
+        <div className="bg-white/5 rounded-2xl overflow-hidden border border-white/10">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-white/10">
+                <tr>
+                  <th className="px-4 py-3 text-left text-white">ID</th>
+                  <th className="px-4 py-3 text-left text-white">Name</th>
+                  <th className="px-4 py-3 text-left text-white">Class</th>
+                  <th className="px-4 py-3 text-left text-white">Section</th>
+                  <th className="px-4 py-3 text-left text-white">Parent/Guardian</th>
+                  <th className="px-4 py-3 text-left text-white">Contact</th>
+                  <th className="px-4 py-3 text-left text-white">Email</th>
+                  <th className="px-4 py-3 text-left text-white">Status</th>
+                  <th className="px-4 py-3 text-left text-white">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={9} className="text-center py-8 text-white/60">Loading...</td></tr>
+                ) : filteredStudents.length === 0 ? (
+                  <tr><td colSpan={9} className="text-center py-8 text-white/60">No students found</td></tr>
+                ) : (
+                  filteredStudents.map((student, idx) => (
+                    <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
+                      <td className="px-4 py-3 text-white/80">{student.student_id || student.id}</td>
+                      <td className="px-4 py-3 text-white">{student.name}</td>
+                      <td className="px-4 py-3 text-white/80">{student.class || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.section || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.parentname || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.contact || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.email || '-'}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleToggleStatus(student)}
+                          className={`px-3 py-1 rounded-full text-sm font-semibold ${student.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+                        >
+                          {student.status === 'Active' ? '● Active' : '○ Inactive'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => openModal('modify', student)} className="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
+                        <button onClick={() => handleDelete(student.student_id || student.id)} className="text-red-400 hover:text-red-300">Delete</button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/40" size={20} />
-        <input type="text" placeholder="Search by name, ID, class, section, or parent..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl text-white" />
-      </div>
-
-      <div className="bg-white/5 backdrop-blur-xl rounded-2xl overflow-x-auto">
-        <table className="w-full min-w-[1600px]">
-          <thead className="bg-white/10">
-            <tr>
-              <th className="px-4 py-4 text-left text-white">ID</th>
-              <th className="px-4 py-4 text-left text-white">Admission No</th>
-              <th className="px-4 py-4 text-left text-white">Name</th>
-              <th className="px-4 py-4 text-left text-white">Class</th>
-              <th className="px-4 py-4 text-left text-white">Section</th>
-              <th className="px-4 py-4 text-left text-white">Roll No</th>
-              <th className="px-4 py-4 text-left text-white">Parent Name</th>
-              <th className="px-4 py-4 text-left text-white">Parent Phone</th>
-              <th className="px-4 py-4 text-left text-white">Parent Email</th>
-              <th className="px-4 py-4 text-left text-white">Student Contact</th>
-              <th className="px-4 py-4 text-left text-white">Student Email</th>
-              <th className="px-4 py-4 text-left text-white">Guardian Name</th>
-              <th className="px-4 py-4 text-left text-white">Guardian Phone</th>
-              <th className="px-4 py-4 text-left text-white">Status</th>
-              <th className="px-4 py-4 text-left text-white">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.map((student) => (
-              <tr key={student.id} className="border-t border-white/10 hover:bg-white/5">
-                <td className="px-4 py-4 text-white/80">{student.id}</td>
-                <td className="px-4 py-4 text-white/80">{student.admissionNo || '—'}</td>
-                <td className="px-4 py-4 text-white font-medium">{student.name}</td>
-                <td className="px-4 py-4 text-white/80">{student.class || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.section || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.rollNo || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.parentName || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.parentPhone || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.parentEmail || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.contact || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.email || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.guardianName || '—'}</td>
-                <td className="px-4 py-4 text-white/80">{student.guardianPhone || '—'}</td>
-                <td className="px-4 py-4"><button onClick={() => handleToggleStatus(student.id)} className={`px-3 py-1 rounded-full text-sm font-semibold ${student.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{student.status}</button></td>
-                <td className="px-4 py-4"><div className="flex gap-2"><button onClick={() => openModal('modify', student)} className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg"><Pencil size={16} /></button><button onClick={() => handleDelete(student.id)} className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"><Trash2 size={16} /></button></div></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
+      {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <motion.div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
-            <motion.div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-md border border-white/20 max-h-[90vh] overflow-y-auto"
+            >
               <div className="flex justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">{modalType === 'add' ? 'Add New Student' : 'Modify Student'}</h2>
-                <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-white/40" /></button>
+                <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-white/40 hover:text-white">✕</button>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" placeholder="Admission Number" value={formData.admissionNo} onChange={(e) => setFormData({...formData, admissionNo: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Student Name *" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Class" value={formData.class} onChange={(e) => setFormData({...formData, class: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Section" value={formData.section} onChange={(e) => setFormData({...formData, section: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Roll Number" value={formData.rollNo} onChange={(e) => setFormData({...formData, rollNo: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Parent Name" value={formData.parentName} onChange={(e) => setFormData({...formData, parentName: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="tel" placeholder="Parent Phone" value={formData.parentPhone} onChange={(e) => setFormData({...formData, parentPhone: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="email" placeholder="Parent Email (must end with @gmail.com)" value={formData.parentEmail} onChange={(e) => setFormData({...formData, parentEmail: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="tel" placeholder="Student Contact" value={formData.contact} onChange={(e) => setFormData({...formData, contact: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="email" placeholder="Student Email (must end with @gmail.com)" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Guardian Name" value={formData.guardianName} onChange={(e) => setFormData({...formData, guardianName: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="tel" placeholder="Guardian Phone" value={formData.guardianPhone} onChange={(e) => setFormData({...formData, guardianPhone: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
+
+              {validationError && (
+                <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-3 text-red-400 text-sm text-center mb-4">
+                  {validationError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Student ID *"
+                  value={formData.student_id}
+                  onChange={(e) => setFormData({...formData, student_id: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Student Name *"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Class (e.g., 10)"
+                  value={formData.class}
+                  onChange={(e) => setFormData({...formData, class: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Section (e.g., A)"
+                  value={formData.section}
+                  onChange={(e) => setFormData({...formData, section: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Parent/Guardian Name"
+                  value={formData.parentname}
+                  onChange={(e) => setFormData({...formData, parentname: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="tel"
+                  placeholder="Contact Number"
+                  value={formData.contact}
+                  onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="email"
+                  placeholder="Email ID"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <div className="flex items-center gap-4">
+                  <label className="text-white/80">Status:</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button onClick={modalType === 'add' ? handleAdd : handleModify} className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold">
+                <button
+                  onClick={modalType === 'add' ? handleAdd : handleModify}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+                >
                   {modalType === 'add' ? 'Add Student' : 'Save Changes'}
                 </button>
-                <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold">Cancel</button>
+                <button
+                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition"
+                >
+                  Cancel
+                </button>
               </div>
             </motion.div>
           </motion.div>

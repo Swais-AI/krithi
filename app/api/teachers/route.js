@@ -1,100 +1,99 @@
 import { NextResponse } from 'next/server';
-import postgres from 'postgres';
+import pool from '../../../lib/db';
 
-export const dynamic = 'force-dynamic';
-
-const sql = postgres(process.env.DATABASE_URL, { 
-  ssl: 'require'
-});
-
-const validateEmail = (email) => {
-  if (!email || email.trim() === '') return null;
-  const trimmedEmail = email.trim().toLowerCase();
-  if (trimmedEmail.endsWith('@gmail.com')) {
-    return trimmedEmail;
-  }
-  return null;
-};
-
-export async function GET(request) {
+export async function GET() {
   try {
-    const teachers = await sql`
+    const result = await pool.query(`
       SELECT 
         teacher_id as id,
+        teacher_id as teacher_id,
         full_name as name,
         subject_name as subject,
-        qualification as qualification,
-        class_id as classId,
-        section_1 as section1,
-        section_2 as section2,
-        role as role,
         phone as contact,
         email_id as email,
-        CASE WHEN is_class_teacher = true THEN 'Y' ELSE '' END as isClassTeacher,
-        subjects as subjects,
-        CASE WHEN is_active = true THEN 'active' ELSE 'inactive' END as status
+        qualification,
+        is_class_teacher,
+        CASE WHEN is_active = true THEN 'Active' ELSE 'Inactive' END as status
       FROM sgs_teacher_master
-      ORDER BY teacher_id DESC
-      LIMIT 100
-    `;
-    
-    return NextResponse.json({ success: true, teachers: teachers });
+      WHERE is_active = true
+      ORDER BY teacher_id
+    `);
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Database Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('Database error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { 
-      name, subject, qualification, classId, section1, section2, 
-      role, contact, email, isClassTeacher, subjects, status
-    } = body;
+    const { teacher_id, name, subject, contact, email, qualification, is_class_teacher, status } = body;
     
-    const isActive = status === 'active';
-    const validEmail = validateEmail(email);
-    const isClassTeacherFlag = isClassTeacher === 'Y';
-    const subjectsArray = subjects ? subjects.split(',').map(s => s.trim()) : [];
+    const isActive = status === 'Active';
+    const isClassTeacher = is_class_teacher === true || is_class_teacher === 'true';
     
-    const result = await sql`
-      INSERT INTO sgs_teacher_master (
-        full_name,
-        subject_name,
-        qualification,
-        class_id,
-        section_1,
-        section_2,
-        role,
-        phone,
-        email_id,
-        is_class_teacher,
-        subjects,
-        is_active,
-        created_at
-      )
-      VALUES (
-        ${name}, 
-        ${subject || null},
-        ${qualification || null},
-        ${classId || null},
-        ${section1 || null},
-        ${section2 || null},
-        ${role || 'TEACHER'},
-        ${contact || null}, 
-        ${validEmail},
-        ${isClassTeacherFlag},
-        ${subjectsArray},
-        ${isActive},
-        NOW()
-      )
-      RETURNING teacher_id as id
-    `;
+    const result = await pool.query(
+      `INSERT INTO sgs_teacher_master 
+       (teacher_id, full_name, subject_name, phone, email_id, qualification, is_class_teacher, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [teacher_id, name, subject, contact, email, qualification || null, isClassTeacher, isActive]
+    );
     
-    return NextResponse.json({ success: true, message: 'Teacher added successfully', teacher: result[0] });
+    return NextResponse.json({ 
+      success: true,
+      teacher: {
+        id: result.rows[0].teacher_id,
+        name: result.rows[0].full_name,
+        subject: result.rows[0].subject_name,
+        contact: result.rows[0].phone,
+        email: result.rows[0].email_id,
+        qualification: result.rows[0].qualification,
+        is_class_teacher: result.rows[0].is_class_teacher,
+        status: result.rows[0].is_active ? 'Active' : 'Inactive'
+      }
+    }, { status: 201 });
   } catch (error) {
-    console.error('Error inserting teacher:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('Error adding teacher:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { teacher_id, name, subject, contact, email, qualification, is_class_teacher, status } = body;
+    
+    const isActive = status === 'Active';
+    const isClassTeacher = is_class_teacher === true || is_class_teacher === 'true';
+    
+    await pool.query(
+      `UPDATE sgs_teacher_master 
+       SET full_name = $1, subject_name = $2, phone = $3, email_id = $4, 
+           qualification = $5, is_class_teacher = $6, is_active = $7
+       WHERE teacher_id = $8`,
+      [name, subject, contact, email, qualification || null, isClassTeacher, isActive, teacher_id]
+    );
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error updating teacher:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    await pool.query(
+      `UPDATE sgs_teacher_master SET is_active = false WHERE teacher_id = $1`,
+      [id]
+    );
+    
+    return NextResponse.json({ message: 'Teacher deleted successfully' });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
