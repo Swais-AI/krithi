@@ -3,21 +3,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Bell, 
-  Send, 
-  Users, 
-  User, 
-  Calendar, 
-  Trophy,
-  Music,
-  Bus,
-  Plus,
-  X,
-  Mail,
-  Clock,
-  MapPin,
-  Pencil,
-  Trash2
+  Bell, Send, Users, User, Calendar, Trophy,
+  Music, Bus, Plus, X, Mail, Clock, MapPin,
+  Pencil, Trash2
 } from 'lucide-react';
 
 interface Notification {
@@ -53,7 +41,9 @@ export default function OthersPage() {
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [validationError, setValidationError] = useState('');
   const [newNotification, setNewNotification] = useState({
     title: '',
     message: '',
@@ -66,7 +56,6 @@ export default function OthersPage() {
     location: ''
   });
 
-  // Fetch notifications from API
   useEffect(() => {
     fetchNotifications();
   }, []);
@@ -83,7 +72,21 @@ export default function OthersPage() {
     }
   };
 
+  const validateNotice = () => {
+    if (!newNotification.title.trim()) {
+      setValidationError('Notice Title is required');
+      return false;
+    }
+    if (!newNotification.message.trim()) {
+      setValidationError('Notice Message is required');
+      return false;
+    }
+    setValidationError('');
+    return true;
+  };
+
   const handleSendNotification = async () => {
+    if (!validateNotice()) return;
     try {
       const response = await fetch('/api/notices', {
         method: 'POST',
@@ -101,9 +104,11 @@ export default function OthersPage() {
         setNewNotification({ title: '', message: '' });
         setEditingNotification(null);
         setSelectedRole('all');
+        setValidationError('');
       }
     } catch (error) {
       console.error('Error sending notification:', error);
+      setValidationError('Failed to send notification');
     }
   };
 
@@ -114,6 +119,7 @@ export default function OthersPage() {
       message: notification.message
     });
     setSelectedRole(notification.role || 'all');
+    setValidationError('');
     setShowNotificationModal(true);
   };
 
@@ -180,6 +186,11 @@ export default function OthersPage() {
     return 'bg-green-500/20 text-green-400';
   };
 
+  const filteredNotifications = notifications.filter(n =>
+    n.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    n.message?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
@@ -193,7 +204,6 @@ export default function OthersPage() {
           <p className="text-white/60">Manage notifications, tours, and school functions</p>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-8">
           <button
             onClick={() => setActiveTab('notifications')}
@@ -224,31 +234,42 @@ export default function OthersPage() {
           </button>
         </div>
 
-        {/* Notifications Tab */}
         {activeTab === 'notifications' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <button
-              onClick={() => {
-                setEditingNotification(null);
-                setNewNotification({ title: '', message: '' });
-                setSelectedRole('all');
-                setShowNotificationModal(true);
-              }}
-              className="mb-6 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition-all"
-            >
-              <Send size={18} /> Send New Notification
-            </button>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex flex-wrap gap-4 mb-6">
+              <button
+                onClick={() => {
+                  setEditingNotification(null);
+                  setNewNotification({ title: '', message: '' });
+                  setSelectedRole('all');
+                  setValidationError('');
+                  setShowNotificationModal(true);
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition-all"
+              >
+                <Plus size={18} /> Add Notice
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-4 mb-6">
+              <div className="flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="Search notices..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+              </div>
+            </div>
 
             {loading ? (
               <div className="text-center py-8 text-white/60">Loading notifications...</div>
-            ) : notifications.length === 0 ? (
+            ) : filteredNotifications.length === 0 ? (
               <div className="text-center py-8 text-white/60">No notifications found</div>
             ) : (
               <div className="space-y-4">
-                {notifications.map((notification, idx) => (
+                {filteredNotifications.map((notification, idx) => (
                   <motion.div
                     key={notification.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -302,12 +323,8 @@ export default function OthersPage() {
           </motion.div>
         )}
 
-        {/* Events Tab */}
         {activeTab === 'events' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <button
               onClick={() => {
                 setEditingEvent(null);
@@ -339,7 +356,7 @@ export default function OthersPage() {
                       <p className="text-white/80 text-sm mt-1">{event.description}</p>
                       <div className="flex items-center gap-4 mt-4 text-white/80 text-sm flex-wrap">
                         <span className="flex items-center gap-1">
-                          <Calendar size={14} /> {new Date(event.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          <Calendar size={14} /> {new Date(event.date).toLocaleDateString()}
                         </span>
                         {event.location && (
                           <span className="flex items-center gap-1">
@@ -394,12 +411,13 @@ export default function OthersPage() {
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">
-                  {editingNotification ? 'Modify Notice' : 'Send Notification'}
+                  {editingNotification ? 'Modify Notice' : 'Add Notice'}
                 </h2>
                 <button
                   onClick={() => {
                     setShowNotificationModal(false);
                     setEditingNotification(null);
+                    setValidationError('');
                   }}
                   className="text-white/40 hover:text-white transition-colors"
                 >
@@ -407,16 +425,22 @@ export default function OthersPage() {
                 </button>
               </div>
 
+              {validationError && (
+                <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-3 text-red-400 text-sm text-center mb-4">
+                  {validationError}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <input
                   type="text"
-                  placeholder="Notification Title"
+                  placeholder="Notice Title *"
                   value={newNotification.title}
                   onChange={(e) => setNewNotification({...newNotification, title: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
                 <textarea
-                  placeholder="Notification Message"
+                  placeholder="Notice Message *"
                   value={newNotification.message}
                   onChange={(e) => setNewNotification({...newNotification, message: e.target.value})}
                   rows={4}
@@ -453,121 +477,13 @@ export default function OthersPage() {
                   onClick={handleSendNotification}
                   className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
                 >
-                  <Send size={16} /> {editingNotification ? 'Update Notice' : 'Send'}
+                  <Send size={16} /> {editingNotification ? 'Update Notice' : 'Add Notice'}
                 </button>
                 <button
                   onClick={() => {
                     setShowNotificationModal(false);
                     setEditingNotification(null);
-                  }}
-                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Modal for Event */}
-      <AnimatePresence>
-        {showEventModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-md border border-white/20"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">
-                  {editingEvent ? 'Modify Event' : 'Add New Event'}
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowEventModal(false);
-                    setEditingEvent(null);
-                  }}
-                  className="text-white/40 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Event Title"
-                  value={newEvent.title}
-                  onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                
-                <div>
-                  <label className="text-white/60 text-sm mb-2 block">Event Type:</label>
-                  <div className="flex gap-3">
-                    {[
-                      { id: 'tour', label: 'Tour', icon: Bus },
-                      { id: 'function', label: 'Function', icon: Music },
-                      { id: 'activity', label: 'Activity', icon: Trophy },
-                    ].map((option) => (
-                      <button
-                        key={option.id}
-                        onClick={() => setNewEvent({...newEvent, type: option.id as any})}
-                        className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                          newEvent.type === option.id
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                            : 'bg-white/10 text-white/60 hover:bg-white/20'
-                        }`}
-                      >
-                        <option.icon size={14} />
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <input
-                  type="date"
-                  value={newEvent.date}
-                  onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
-                />
-                
-                <input
-                  type="text"
-                  placeholder="Location (optional)"
-                  value={newEvent.location}
-                  onChange={(e) => setNewEvent({...newEvent, location: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                
-                <textarea
-                  placeholder="Description"
-                  value={newEvent.description}
-                  onChange={(e) => setNewEvent({...newEvent, description: e.target.value})}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 resize-none"
-                />
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleAddEvent}
-                  className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                >
-                  <Plus size={16} /> {editingEvent ? 'Update Event' : 'Add Event'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowEventModal(false);
-                    setEditingEvent(null);
+                    setValidationError('');
                   }}
                   className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
                 >
