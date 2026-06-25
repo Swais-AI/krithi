@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Search } from 'lucide-react';
+import { Plus, Pencil, Search, Users, UserCheck, UserX, BookOpen } from 'lucide-react';
 
 interface Teacher {
   id: string;
   teacher_id: string;
   name: string;
   subject: string;
+  qualification: string;
+  class_id: string;
+  section_1: string;
+  section_2: string;
+  role: string;
+  is_class_teacher: boolean;
+  subjects: string[];
   contact: string;
   email: string;
-  qualification: string;
-  is_class_teacher: boolean;
   status: 'Active' | 'Inactive';
 }
 
@@ -29,10 +34,15 @@ export default function TeachersPage() {
     teacher_id: '',
     name: '',
     subject: '',
+    qualification: '',
+    class_id: '',
+    section_1: '',
+    section_2: '',
+    role: 'teacher',
+    is_class_teacher: false,
+    subjects: '',
     contact: '',
     email: '',
-    qualification: '',
-    is_class_teacher: false,
     status: 'Active'
   });
 
@@ -75,7 +85,10 @@ export default function TeachersPage() {
       const response = await fetch('/api/teachers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          subjects: formData.subjects.split(',').map(s => s.trim()).filter(Boolean)
+        })
       });
       if (response.ok) {
         fetchTeachers();
@@ -98,7 +111,11 @@ export default function TeachersPage() {
         const response = await fetch('/api/teachers', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, teacher_id: selectedTeacher.teacher_id })
+          body: JSON.stringify({
+            ...formData,
+            subjects: formData.subjects.split(',').map(s => s.trim()).filter(Boolean),
+            teacher_id: selectedTeacher.teacher_id
+          })
         });
         if (response.ok) {
           fetchTeachers();
@@ -145,10 +162,15 @@ export default function TeachersPage() {
       teacher_id: '',
       name: '',
       subject: '',
+      qualification: '',
+      class_id: '',
+      section_1: '',
+      section_2: '',
+      role: 'teacher',
+      is_class_teacher: false,
+      subjects: '',
       contact: '',
       email: '',
-      qualification: '',
-      is_class_teacher: false,
       status: 'Active'
     });
     setSelectedTeacher(null);
@@ -166,10 +188,15 @@ export default function TeachersPage() {
         teacher_id: teacher.teacher_id,
         name: teacher.name,
         subject: teacher.subject || '',
+        qualification: teacher.qualification || '',
+        class_id: teacher.class_id || '',
+        section_1: teacher.section_1 || '',
+        section_2: teacher.section_2 || '',
+        role: teacher.role || 'teacher',
+        is_class_teacher: teacher.is_class_teacher || false,
+        subjects: teacher.subjects?.join(', ') || '',
         contact: teacher.contact || '',
         email: teacher.email || '',
-        qualification: teacher.qualification || '',
-        is_class_teacher: teacher.is_class_teacher || false,
         status: teacher.status
       });
     }
@@ -251,25 +278,31 @@ export default function TeachersPage() {
                   <th className="px-4 py-3 text-left text-white">ID</th>
                   <th className="px-4 py-3 text-left text-white">Name</th>
                   <th className="px-4 py-3 text-left text-white">Subject</th>
+                  <th className="px-4 py-3 text-left text-white">Qualification</th>
+                  <th className="px-4 py-3 text-left text-white">Role</th>
+                  <th className="px-4 py-3 text-left text-white">Section 1</th>
+                  <th className="px-4 py-3 text-left text-white">Section 2</th>
                   <th className="px-4 py-3 text-left text-white">Contact</th>
-                  <th className="px-4 py-3 text-left text-white">Email</th>
                   <th className="px-4 py-3 text-left text-white">Status</th>
                   <th className="px-4 py-3 text-left text-white">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="text-center py-8 text-white/60">Loading...</td></tr>
+                  <tr><td colSpan={10} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredTeachers.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-8 text-white/60">No teachers found</td></tr>
+                  <tr><td colSpan={10} className="text-center py-8 text-white/60">No teachers found</td></tr>
                 ) : (
                   filteredTeachers.map((teacher, idx) => (
                     <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-4 py-3 text-white/80">{teacher.teacher_id}</td>
                       <td className="px-4 py-3 text-white">{teacher.name}</td>
                       <td className="px-4 py-3 text-white/80">{teacher.subject || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{teacher.qualification || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{teacher.role || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{teacher.section_1 || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{teacher.section_2 || '-'}</td>
                       <td className="px-4 py-3 text-white/80">{teacher.contact || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.email || '-'}</td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => handleToggleStatus(teacher)}
@@ -304,7 +337,7 @@ export default function TeachersPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-md border border-white/20 max-h-[90vh] overflow-y-auto"
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">{modalType === 'add' ? 'Add New Teacher' : 'Modify Teacher'}</h2>
@@ -317,33 +350,121 @@ export default function TeachersPage() {
                 </div>
               )}
 
-              <div className="space-y-4">
-                <input type="text" placeholder="Teacher ID *" value={formData.teacher_id} onChange={(e) => setFormData({...formData, teacher_id: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Teacher Name *" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Subject" value={formData.subject} onChange={(e) => setFormData({...formData, subject: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="text" placeholder="Qualification" value={formData.qualification} onChange={(e) => setFormData({...formData, qualification: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="tel" placeholder="Contact Number" value={formData.contact} onChange={(e) => setFormData({...formData, contact: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <input type="email" placeholder="Email ID" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white" />
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" checked={formData.is_class_teacher} onChange={(e) => setFormData({...formData, is_class_teacher: e.target.checked})} className="w-4 h-4" />
-                  <label className="text-white">Is Class Teacher?</label>
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="text-white/80">Status:</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                    className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Teacher ID *"
+                  value={formData.teacher_id}
+                  onChange={(e) => setFormData({...formData, teacher_id: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Teacher Name *"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Subject"
+                  value={formData.subject}
+                  onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Qualification"
+                  value={formData.qualification}
+                  onChange={(e) => setFormData({...formData, qualification: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Class ID"
+                  value={formData.class_id}
+                  onChange={(e) => setFormData({...formData, class_id: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Section 1"
+                  value={formData.section_1}
+                  onChange={(e) => setFormData({...formData, section_1: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Section 2"
+                  value={formData.section_2}
+                  onChange={(e) => setFormData({...formData, section_2: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Role (teacher/principal/admin)"
+                  value={formData.role}
+                  onChange={(e) => setFormData({...formData, role: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Subjects (comma separated)"
+                  value={formData.subjects}
+                  onChange={(e) => setFormData({...formData, subjects: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="tel"
+                  placeholder="Contact Number"
+                  value={formData.contact}
+                  onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="email"
+                  placeholder="Email (must end with @gmail.com)"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_class_teacher}
+                      onChange={(e) => setFormData({...formData, is_class_teacher: e.target.checked})}
+                      className="w-4 h-4"
+                    />
+                    <label className="text-white">Is Class Teacher?</label>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="text-white/80">Status:</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button onClick={modalType === 'add' ? handleAdd : handleModify} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold">{modalType === 'add' ? 'Add Teacher' : 'Save Changes'}</button>
-                <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold">Cancel</button>
+                <button
+                  onClick={modalType === 'add' ? handleAdd : handleModify}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+                >
+                  {modalType === 'add' ? 'Add Teacher' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition"
+                >
+                  Cancel
+                </button>
               </div>
             </motion.div>
           </motion.div>

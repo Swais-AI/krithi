@@ -10,12 +10,18 @@ import {
 interface Student {
   id: string;
   student_id: string;
+  admission_no: string;
   name: string;
   class: string;
   section: string;
-  parentname: string;
-  contact: string;
-  email: string;
+  roll_no: string;
+  parent_name: string;
+  parent_phone: string;
+  parent_email: string;
+  student_contact: string;
+  student_email: string;
+  guardian_name: string;
+  guardian_phone: string;
   status: 'Active' | 'Inactive';
 }
 
@@ -23,19 +29,24 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState<'name' | 'id' | 'class'>('name');
+  const [searchType, setSearchType] = useState<'name' | 'id' | 'class' | 'section'>('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'add' | 'modify'>('add');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [validationError, setValidationError] = useState('');
   const [formData, setFormData] = useState({
-    student_id: '',
+    admission_no: '',
     name: '',
     class: '',
     section: '',
-    parentname: '',
-    contact: '',
-    email: '',
+    roll_no: '',
+    parent_name: '',
+    parent_phone: '',
+    parent_email: '',
+    student_contact: '',
+    student_email: '',
+    guardian_name: '',
+    guardian_phone: '',
     status: 'Active'
   });
 
@@ -47,7 +58,6 @@ export default function StudentsPage() {
     try {
       const response = await fetch('/api/students');
       const data = await response.json();
-      // Ensure data is an array
       if (Array.isArray(data)) {
         setStudents(data);
       } else {
@@ -67,12 +77,16 @@ export default function StudentsPage() {
       setValidationError('Student Name is required');
       return false;
     }
-    if (!formData.student_id.trim()) {
-      setValidationError('Student ID is required');
+    if (!formData.admission_no.trim()) {
+      setValidationError('Admission Number is required');
       return false;
     }
-    if (formData.email && !formData.email.includes('@')) {
-      setValidationError('Please enter a valid email address');
+    if (formData.parent_email && !formData.parent_email.includes('@')) {
+      setValidationError('Please enter a valid parent email address');
+      return false;
+    }
+    if (formData.student_email && !formData.student_email.includes('@')) {
+      setValidationError('Please enter a valid student email address');
       return false;
     }
     setValidationError('');
@@ -152,13 +166,18 @@ export default function StudentsPage() {
 
   const resetForm = () => {
     setFormData({
-      student_id: '',
+      admission_no: '',
       name: '',
       class: '',
       section: '',
-      parentname: '',
-      contact: '',
-      email: '',
+      roll_no: '',
+      parent_name: '',
+      parent_phone: '',
+      parent_email: '',
+      student_contact: '',
+      student_email: '',
+      guardian_name: '',
+      guardian_phone: '',
       status: 'Active'
     });
     setSelectedStudent(null);
@@ -173,25 +192,30 @@ export default function StudentsPage() {
     } else if (type === 'modify' && student) {
       setSelectedStudent(student);
       setFormData({
-        student_id: student.student_id || student.id,
-        name: student.name,
+        admission_no: student.admission_no || student.student_id || '',
+        name: student.name || '',
         class: student.class || '',
         section: student.section || '',
-        parentname: student.parentname || '',
-        contact: student.contact || '',
-        email: student.email || '',
+        roll_no: student.roll_no || '',
+        parent_name: student.parent_name || '',
+        parent_phone: student.parent_phone || '',
+        parent_email: student.parent_email || '',
+        student_contact: student.student_contact || '',
+        student_email: student.student_email || '',
+        guardian_name: student.guardian_name || '',
+        guardian_phone: student.guardian_phone || '',
         status: student.status || 'Active'
       });
     }
     setIsModalOpen(true);
   };
 
-  // Safe filtering - only if students is an array
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return s.name?.toLowerCase().includes(term);
-    if (searchType === 'id') return s.student_id?.toLowerCase().includes(term);
+    if (searchType === 'id') return s.admission_no?.toLowerCase().includes(term) || s.student_id?.toLowerCase().includes(term);
     if (searchType === 'class') return s.class?.toLowerCase().includes(term);
+    if (searchType === 'section') return s.section?.toLowerCase().includes(term);
     return true;
   }) : [];
 
@@ -235,8 +259,8 @@ export default function StudentsPage() {
             <Plus size={18} /> Add Student
           </button>
           <button onClick={() => {
-            const id = prompt('Enter Student ID to modify:');
-            const student = students.find(s => s.student_id === id || s.id === id);
+            const id = prompt('Enter Admission Number or Student ID to modify:');
+            const student = students.find(s => s.admission_no === id || s.student_id === id || s.id === id);
             if (student) openModal('modify', student);
             else alert('Student not found!');
           }} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
@@ -248,7 +272,7 @@ export default function StudentsPage() {
           <div className="flex-1 min-w-[200px]">
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search by name, ID, class, or section..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
@@ -262,6 +286,7 @@ export default function StudentsPage() {
             <option value="name">Search by Name</option>
             <option value="id">Search by ID</option>
             <option value="class">Search by Class</option>
+            <option value="section">Search by Section</option>
           </select>
         </div>
 
@@ -274,28 +299,30 @@ export default function StudentsPage() {
                   <th className="px-4 py-3 text-left text-white">Name</th>
                   <th className="px-4 py-3 text-left text-white">Class</th>
                   <th className="px-4 py-3 text-left text-white">Section</th>
-                  <th className="px-4 py-3 text-left text-white">Parent/Guardian</th>
-                  <th className="px-4 py-3 text-left text-white">Contact</th>
-                  <th className="px-4 py-3 text-left text-white">Email</th>
+                  <th className="px-4 py-3 text-left text-white">Roll No</th>
+                  <th className="px-4 py-3 text-left text-white">Parent Name</th>
+                  <th className="px-4 py-3 text-left text-white">Parent Contact</th>
+                  <th className="px-4 py-3 text-left text-white">Student Contact</th>
                   <th className="px-4 py-3 text-left text-white">Status</th>
                   <th className="px-4 py-3 text-left text-white">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-8 text-white/60">Loading...</td></tr>
+                  <tr><td colSpan={10} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredStudents.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-8 text-white/60">No students found</td></tr>
+                  <tr><td colSpan={10} className="text-center py-8 text-white/60">No students found</td></tr>
                 ) : (
                   filteredStudents.map((student, idx) => (
                     <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3 text-white/80">{student.student_id || student.id}</td>
+                      <td className="px-4 py-3 text-white/80">{student.admission_no || student.student_id || student.id}</td>
                       <td className="px-4 py-3 text-white">{student.name}</td>
                       <td className="px-4 py-3 text-white/80">{student.class || '-'}</td>
                       <td className="px-4 py-3 text-white/80">{student.section || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.parentname || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.contact || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.email || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.roll_no || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.parent_name || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.parent_phone || '-'}</td>
+                      <td className="px-4 py-3 text-white/80">{student.student_contact || '-'}</td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => handleToggleStatus(student)}
@@ -306,7 +333,7 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <button onClick={() => openModal('modify', student)} className="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
-                        <button onClick={() => handleDelete(student.student_id || student.id)} className="text-red-400 hover:text-red-300">Delete</button>
+                        <button onClick={() => handleDelete(student.admission_no || student.id)} className="text-red-400 hover:text-red-300">Delete</button>
                       </td>
                     </tr>
                   ))
@@ -330,7 +357,7 @@ export default function StudentsPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-md border border-white/20 max-h-[90vh] overflow-y-auto"
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">{modalType === 'add' ? 'Add New Student' : 'Modify Student'}</h2>
@@ -343,12 +370,12 @@ export default function StudentsPage() {
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
-                  placeholder="Student ID *"
-                  value={formData.student_id}
-                  onChange={(e) => setFormData({...formData, student_id: e.target.value})}
+                  placeholder="Admission Number *"
+                  value={formData.admission_no}
+                  onChange={(e) => setFormData({...formData, admission_no: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
                 <input
@@ -360,50 +387,86 @@ export default function StudentsPage() {
                 />
                 <input
                   type="text"
-                  placeholder="Class (e.g., 10)"
+                  placeholder="Class"
                   value={formData.class}
                   onChange={(e) => setFormData({...formData, class: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
                 <input
                   type="text"
-                  placeholder="Section (e.g., A)"
+                  placeholder="Section"
                   value={formData.section}
                   onChange={(e) => setFormData({...formData, section: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
                 <input
                   type="text"
-                  placeholder="Parent/Guardian Name"
-                  value={formData.parentname}
-                  onChange={(e) => setFormData({...formData, parentname: e.target.value})}
+                  placeholder="Roll Number"
+                  value={formData.roll_no}
+                  onChange={(e) => setFormData({...formData, roll_no: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Parent Name"
+                  value={formData.parent_name}
+                  onChange={(e) => setFormData({...formData, parent_name: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
                 <input
                   type="tel"
-                  placeholder="Contact Number"
-                  value={formData.contact}
-                  onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                  placeholder="Parent Phone"
+                  value={formData.parent_phone}
+                  onChange={(e) => setFormData({...formData, parent_phone: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
                 <input
                   type="email"
-                  placeholder="Email ID"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  placeholder="Parent Email (must end with @gmail.com)"
+                  value={formData.parent_email}
+                  onChange={(e) => setFormData({...formData, parent_email: e.target.value})}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                 />
-                <div className="flex items-center gap-4">
-                  <label className="text-white/80">Status:</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                    className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
+                <input
+                  type="tel"
+                  placeholder="Student Contact"
+                  value={formData.student_contact}
+                  onChange={(e) => setFormData({...formData, student_contact: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="email"
+                  placeholder="Student Email (must end with @gmail.com)"
+                  value={formData.student_email}
+                  onChange={(e) => setFormData({...formData, student_email: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="text"
+                  placeholder="Guardian Name"
+                  value={formData.guardian_name}
+                  onChange={(e) => setFormData({...formData, guardian_name: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+                <input
+                  type="tel"
+                  placeholder="Guardian Phone"
+                  value={formData.guardian_phone}
+                  onChange={(e) => setFormData({...formData, guardian_phone: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                />
+              </div>
+
+              <div className="flex items-center gap-4 mt-4">
+                <label className="text-white/80">Status:</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
 
               <div className="flex gap-3 mt-6">

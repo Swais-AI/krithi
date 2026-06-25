@@ -15,13 +15,18 @@ export async function GET() {
     const result = await pool.query(`
       SELECT 
         student_id as id,
-        admission_no as student_id,
+        admission_no,
         full_name as name,
-        class_name as class,
-        section as section,
-        guardian_name as parentname,
-        student_phone as contact,
-        student_email as email,
+        class,
+        section,
+        roll_no,
+        parent1_name as parent_name,
+        parent1_phone as parent_phone,
+        parent1_email as parent_email,
+        student_phone as student_contact,
+        student_email,
+        guardian_name,
+        guardian_phone,
         record_status as status
       FROM sgs_student_master
       WHERE record_status != 'Deleted'
@@ -37,26 +42,43 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { student_id, name, class: className, section, parentname, contact, email, status } = body;
+    const { 
+      admission_no, name, class: className, section, roll_no,
+      parent_name, parent_phone, parent_email,
+      student_contact, student_email,
+      guardian_name, guardian_phone,
+      status
+    } = body;
     
     const result = await pool.query(
       `INSERT INTO sgs_student_master 
-       (admission_no, full_name, class_name, section, guardian_name, student_phone, student_email, record_status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [student_id, name, className, section, parentname, contact, email, status || 'Active']
+       (admission_no, full_name, class, section, roll_no,
+        parent1_name, parent1_phone, parent1_email,
+        student_phone, student_email, guardian_name, guardian_phone,
+        record_status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [admission_no, name, className, section, roll_no,
+       parent_name, parent_phone, parent_email,
+       student_contact, student_email, guardian_name, guardian_phone,
+       status || 'Active']
     );
     
     return NextResponse.json({ 
       success: true,
       student: {
         id: result.rows[0].student_id,
-        student_id: result.rows[0].admission_no,
+        admission_no: result.rows[0].admission_no,
         name: result.rows[0].full_name,
-        class: result.rows[0].class_name,
+        class: result.rows[0].class,
         section: result.rows[0].section,
-        parentname: result.rows[0].guardian_name,
-        contact: result.rows[0].student_phone,
-        email: result.rows[0].student_email,
+        roll_no: result.rows[0].roll_no,
+        parent_name: result.rows[0].parent1_name,
+        parent_phone: result.rows[0].parent1_phone,
+        parent_email: result.rows[0].parent1_email,
+        student_contact: result.rows[0].student_phone,
+        student_email: result.rows[0].student_email,
+        guardian_name: result.rows[0].guardian_name,
+        guardian_phone: result.rows[0].guardian_phone,
         status: result.rows[0].record_status
       }
     }, { status: 201 });
@@ -69,13 +91,27 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, student_id, name, class: className, section, parentname, contact, email, status } = body;
+    const { 
+      admission_no, name, class: className, section, roll_no,
+      parent_name, parent_phone, parent_email,
+      student_contact, student_email,
+      guardian_name, guardian_phone,
+      status, id
+    } = body;
     
     await pool.query(
       `UPDATE sgs_student_master 
-       SET full_name = $1, class_name = $2, section = $3, guardian_name = $4, student_phone = $5, student_email = $6, record_status = $7
-       WHERE admission_no = $8`,
-      [name, className, section, parentname, contact, email, status, student_id]
+       SET full_name = $1, class = $2, section = $3, roll_no = $4,
+           parent1_name = $5, parent1_phone = $6, parent1_email = $7,
+           student_phone = $8, student_email = $9,
+           guardian_name = $10, guardian_phone = $11,
+           record_status = $12
+       WHERE admission_no = $13 OR student_id = $14`,
+      [name, className, section, roll_no,
+       parent_name, parent_phone, parent_email,
+       student_contact, student_email,
+       guardian_name, guardian_phone,
+       status, admission_no, id]
     );
     
     return NextResponse.json({ success: true });
@@ -91,7 +127,7 @@ export async function DELETE(request) {
     const id = searchParams.get('id');
     
     await pool.query(
-      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1`,
+      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1 OR student_id = $1`,
       [id]
     );
     
