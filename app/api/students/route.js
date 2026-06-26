@@ -17,7 +17,7 @@ export async function GET() {
         student_id as id,
         admission_no,
         full_name as name,
-        class,
+        class_name as class,
         section,
         roll_no,
         parent1_name as parent_name,
@@ -52,7 +52,7 @@ export async function POST(request) {
     
     const result = await pool.query(
       `INSERT INTO sgs_student_master 
-       (admission_no, full_name, class, section, roll_no,
+       (admission_no, full_name, class_name, section, roll_no,
         parent1_name, parent1_phone, parent1_email,
         student_phone, student_email, guardian_name, guardian_phone,
         record_status) 
@@ -65,22 +65,7 @@ export async function POST(request) {
     
     return NextResponse.json({ 
       success: true,
-      student: {
-        id: result.rows[0].student_id,
-        admission_no: result.rows[0].admission_no,
-        name: result.rows[0].full_name,
-        class: result.rows[0].class,
-        section: result.rows[0].section,
-        roll_no: result.rows[0].roll_no,
-        parent_name: result.rows[0].parent1_name,
-        parent_phone: result.rows[0].parent1_phone,
-        parent_email: result.rows[0].parent1_email,
-        student_contact: result.rows[0].student_phone,
-        student_email: result.rows[0].student_email,
-        guardian_name: result.rows[0].guardian_name,
-        guardian_phone: result.rows[0].guardian_phone,
-        status: result.rows[0].record_status
-      }
+      student: result.rows[0]
     }, { status: 201 });
   } catch (error) {
     console.error('Error adding student:', error);
@@ -101,7 +86,7 @@ export async function PUT(request) {
     
     await pool.query(
       `UPDATE sgs_student_master 
-       SET full_name = $1, class = $2, section = $3, roll_no = $4,
+       SET full_name = $1, class_name = $2, section = $3, roll_no = $4,
            parent1_name = $5, parent1_phone = $6, parent1_email = $7,
            student_phone = $8, student_email = $9,
            guardian_name = $10, guardian_phone = $11,

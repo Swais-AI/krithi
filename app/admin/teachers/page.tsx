@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Search, Users, UserCheck, UserX, BookOpen } from 'lucide-react';
+import { Plus, Pencil, Search, Users, UserCheck, UserX, BookOpen, Globe } from 'lucide-react';
+// AI Imports
+import TranslationDropdown from '../../components/TranslationDropdown';
+import TextToSpeechButton from '../../components/TextToSpeechButton';
+import SpeechToTextButton from '../../components/SpeechToTextButton';
+import { bulkTranslate, supportedLanguages } from '../../utils/aiHelpers';
 
 interface Teacher {
   id: string;
@@ -30,6 +35,9 @@ export default function TeachersPage() {
   const [modalType, setModalType] = useState<'add' | 'modify'>('add');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [validationError, setValidationError] = useState('');
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+  const [showBulkTranslateDropdown, setShowBulkTranslateDropdown] = useState(false);
   const [formData, setFormData] = useState({
     teacher_id: '',
     name: '',
@@ -203,13 +211,32 @@ export default function TeachersPage() {
     setIsModalOpen(true);
   };
 
-  const filteredTeachers = teachers.filter(t => {
+  // AI: Bulk Translate All Teacher Names
+  const handleBulkTranslate = async (langCode: string) => {
+    setIsTranslatingAll(true);
+    setShowBulkTranslateDropdown(false);
+    try {
+      const result = await bulkTranslate(teachers, langCode, 'name');
+      setTranslations(result);
+    } catch (error) {
+      console.error('Bulk translation error:', error);
+    } finally {
+      setIsTranslatingAll(false);
+    }
+  };
+
+  // AI: Voice input handler for form fields
+  const handleVoiceInput = (fieldName: string, transcript: string) => {
+    setFormData(prev => ({ ...prev, [fieldName]: transcript }));
+  };
+
+  const filteredTeachers = Array.isArray(teachers) ? teachers.filter(t => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return t.name?.toLowerCase().includes(term);
     if (searchType === 'id') return t.teacher_id?.toLowerCase().includes(term);
     if (searchType === 'subject') return t.subject?.toLowerCase().includes(term);
     return true;
-  });
+  }) : [];
 
   const totalTeachers = teachers.length;
   const activeTeachers = teachers.filter(t => t.status === 'Active').length;
@@ -219,6 +246,40 @@ export default function TeachersPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-white mb-2">👨‍🏫 Teacher Management</h1>
         <p className="text-white/60 mb-8">Manage faculty members, assign subjects, and track performance</p>
+
+        {/* AI - Bulk Translation Dropdown */}
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-white/50 text-sm flex items-center gap-1">
+            🌐 Translate All:
+            {isTranslatingAll && <span className="text-yellow-400 animate-pulse text-xs ml-1">translating...</span>}
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setShowBulkTranslateDropdown(!showBulkTranslateDropdown)}
+              disabled={isTranslatingAll}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white rounded-lg transition-colors text-sm disabled:opacity-50"
+            >
+              <Globe size={16} />
+              <span>Select Language</span>
+              <svg className={`w-4 h-4 transition-transform ${showBulkTranslateDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showBulkTranslateDropdown && (
+              <div className="absolute z-50 mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 p-1 min-w-[150px] max-h-60 overflow-y-auto">
+                {supportedLanguages.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => handleBulkTranslate(lang.code)}
+                    className="w-full text-left px-3 py-2 rounded text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    {lang.name} ({lang.code.toUpperCase()})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-6">
@@ -250,14 +311,17 @@ export default function TeachersPage() {
         </div>
 
         <div className="flex flex-wrap gap-4 mb-6">
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[200px] relative">
             <input
               type="text"
               placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
             />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <SpeechToTextButton onTranscript={(text) => setSearchTerm(text)} />
+            </div>
           </div>
           <select
             value={searchType}
@@ -293,30 +357,44 @@ export default function TeachersPage() {
                 ) : filteredTeachers.length === 0 ? (
                   <tr><td colSpan={10} className="text-center py-8 text-white/60">No teachers found</td></tr>
                 ) : (
-                  filteredTeachers.map((teacher, idx) => (
-                    <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3 text-white/80">{teacher.teacher_id}</td>
-                      <td className="px-4 py-3 text-white">{teacher.name}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.subject || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.qualification || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.role || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.section_1 || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.section_2 || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{teacher.contact || '-'}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleToggleStatus(teacher)}
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${teacher.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
-                        >
-                          {teacher.status === 'Active' ? '● Active' : '○ Inactive'}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button onClick={() => openModal('modify', teacher)} className="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
-                        <button onClick={() => handleDelete(teacher.teacher_id)} className="text-red-400 hover:text-red-300">Delete</button>
-                      </td>
-                    </tr>
-                  ))
+                  filteredTeachers.map((teacher, idx) => {
+                    const displayName = translations[teacher.id] || teacher.name;
+                    return (
+                      <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
+                        <td className="px-4 py-3 text-white/80">{teacher.teacher_id}</td>
+                        <td className="px-4 py-3 text-white flex items-center gap-2">
+                          {displayName}
+                          <div className="flex items-center gap-0.5 ml-1">
+                            <TranslationDropdown 
+                              text={teacher.name} 
+                              onTranslate={(translated) => {
+                                setTranslations(prev => ({ ...prev, [teacher.id]: translated }));
+                              }}
+                            />
+                            <TextToSpeechButton text={teacher.name} />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-white/80">{teacher.subject || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{teacher.qualification || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{teacher.role || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{teacher.section_1 || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{teacher.section_2 || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{teacher.contact || '-'}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleToggleStatus(teacher)}
+                            className={`px-3 py-1 rounded-full text-sm font-semibold ${teacher.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+                          >
+                            {teacher.status === 'Active' ? '● Active' : '○ Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => openModal('modify', teacher)} className="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
+                          <button onClick={() => handleDelete(teacher.teacher_id)} className="text-red-400 hover:text-red-300">Delete</button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -324,7 +402,7 @@ export default function TeachersPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Add/Modify Modal with AI Voice Input */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -351,104 +429,75 @@ export default function TeachersPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Teacher ID *"
-                  value={formData.teacher_id}
-                  onChange={(e) => setFormData({...formData, teacher_id: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Teacher Name *"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Subject"
-                  value={formData.subject}
-                  onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Qualification"
-                  value={formData.qualification}
-                  onChange={(e) => setFormData({...formData, qualification: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Class ID"
-                  value={formData.class_id}
-                  onChange={(e) => setFormData({...formData, class_id: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Section 1"
-                  value={formData.section_1}
-                  onChange={(e) => setFormData({...formData, section_1: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Section 2"
-                  value={formData.section_2}
-                  onChange={(e) => setFormData({...formData, section_2: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Role (teacher/principal/admin)"
-                  value={formData.role}
-                  onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Subjects (comma separated)"
-                  value={formData.subjects}
-                  onChange={(e) => setFormData({...formData, subjects: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="tel"
-                  placeholder="Contact Number"
-                  value={formData.contact}
-                  onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="email"
-                  placeholder="Email (must end with @gmail.com)"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
+                {[
+                  { key: 'teacher_id', placeholder: 'Teacher ID *' },
+                  { key: 'name', placeholder: 'Teacher Name *' },
+                  { key: 'subject', placeholder: 'Subject' },
+                  { key: 'qualification', placeholder: 'Qualification' },
+                  { key: 'class_id', placeholder: 'Class ID' },
+                  { key: 'section_1', placeholder: 'Section 1' },
+                  { key: 'section_2', placeholder: 'Section 2' },
+                  { key: 'role', placeholder: 'Role' },
+                  { key: 'subjects', placeholder: 'Subjects (comma separated)' },
+                  { key: 'contact', placeholder: 'Contact Number' },
+                  { key: 'email', placeholder: 'Email' },
+                ].map((field) => (
+                  <div key={field.key} className="relative">
                     <input
-                      type="checkbox"
-                      checked={formData.is_class_teacher}
-                      onChange={(e) => setFormData({...formData, is_class_teacher: e.target.checked})}
-                      className="w-4 h-4"
+                      type="text"
+                      placeholder={field.placeholder}
+                      value={formData[field.key as keyof typeof formData] || ''}
+                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
                     />
-                    <label className="text-white">Is Class Teacher?</label>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <button
+                        onClick={() => {
+                          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                          if (!SpeechRecognition) {
+                            alert('Speech recognition not supported in this browser.');
+                            return;
+                          }
+                          const recognition = new SpeechRecognition();
+                          recognition.lang = 'en-US';
+                          recognition.onresult = (event) => {
+                            const transcript = event.results[0][0].transcript;
+                            handleVoiceInput(field.key, transcript);
+                          };
+                          recognition.start();
+                        }}
+                        className="text-purple-400 hover:text-purple-300 p-1 rounded"
+                        title={`Voice input for ${field.placeholder}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-white/80">Status:</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value})}
-                      className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-2 mt-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_class_teacher}
+                    onChange={(e) => setFormData({...formData, is_class_teacher: e.target.checked})}
+                    className="w-4 h-4"
+                  />
+                  <label className="text-white">Is Class Teacher?</label>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="text-white/80">Status:</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
                 </div>
               </div>
 

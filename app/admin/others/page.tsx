@@ -5,8 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bell, Send, Users, User, Calendar, Trophy,
   Music, Bus, Plus, X, Mail, Clock, MapPin,
-  Pencil, Trash2
+  Pencil, Trash2, Globe
 } from 'lucide-react';
+// AI Imports
+import TranslationDropdown from '../../components/TranslationDropdown';
+import TextToSpeechButton from '../../components/TextToSpeechButton';
+import SpeechToTextButton from '../../components/SpeechToTextButton';
+import { bulkTranslate, supportedLanguages } from '../../utils/aiHelpers';
 
 interface Notification {
   id: string;
@@ -44,6 +49,9 @@ export default function OthersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [validationError, setValidationError] = useState('');
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+  const [showBulkTranslateDropdown, setShowBulkTranslateDropdown] = useState(false);
   const [newNotification, setNewNotification] = useState({
     title: '',
     message: '',
@@ -186,6 +194,25 @@ export default function OthersPage() {
     return 'bg-green-500/20 text-green-400';
   };
 
+  // AI: Bulk Translate All Notice Titles
+  const handleBulkTranslate = async (langCode: string) => {
+    setIsTranslatingAll(true);
+    setShowBulkTranslateDropdown(false);
+    try {
+      const result = await bulkTranslate(notifications, langCode, 'title');
+      setTranslations(result);
+    } catch (error) {
+      console.error('Bulk translation error:', error);
+    } finally {
+      setIsTranslatingAll(false);
+    }
+  };
+
+  // AI: Voice input for notice form
+  const handleVoiceInput = (fieldName: string, transcript: string) => {
+    setNewNotification(prev => ({ ...prev, [fieldName]: transcript }));
+  };
+
   const filteredNotifications = notifications.filter(n =>
     n.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     n.message?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -236,6 +263,40 @@ export default function OthersPage() {
 
         {activeTab === 'notifications' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            {/* AI - Bulk Translation Dropdown */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-white/50 text-sm flex items-center gap-1">
+                🌐 Translate All:
+                {isTranslatingAll && <span className="text-yellow-400 animate-pulse text-xs ml-1">translating...</span>}
+              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setShowBulkTranslateDropdown(!showBulkTranslateDropdown)}
+                  disabled={isTranslatingAll}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white rounded-lg transition-colors text-sm disabled:opacity-50"
+                >
+                  <Globe size={16} />
+                  <span>Select Language</span>
+                  <svg className={`w-4 h-4 transition-transform ${showBulkTranslateDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showBulkTranslateDropdown && (
+                  <div className="absolute z-50 mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 p-1 min-w-[150px] max-h-60 overflow-y-auto">
+                    {supportedLanguages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => handleBulkTranslate(lang.code)}
+                        className="w-full text-left px-3 py-2 rounded text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      >
+                        {lang.name} ({lang.code.toUpperCase()})
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-4 mb-6">
               <button
                 onClick={() => {
@@ -252,14 +313,17 @@ export default function OthersPage() {
             </div>
 
             <div className="flex flex-wrap gap-4 mb-6">
-              <div className="flex-1 min-w-[200px]">
+              <div className="flex-1 min-w-[200px] relative">
                 <input
                   type="text"
                   placeholder="Search notices..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
                 />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <SpeechToTextButton onTranscript={(text) => setSearchTerm(text)} />
+                </div>
               </div>
             </div>
 
@@ -269,55 +333,69 @@ export default function OthersPage() {
               <div className="text-center py-8 text-white/60">No notifications found</div>
             ) : (
               <div className="space-y-4">
-                {filteredNotifications.map((notification, idx) => (
-                  <motion.div
-                    key={notification.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className={`bg-white/5 backdrop-blur rounded-2xl p-6 border ${
-                      !notification.is_read ? 'border-blue-500/50 bg-blue-500/5' : 'border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <h3 className="text-lg font-semibold text-white">{notification.title}</h3>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(notification.role)}`}>
-                            {notification.role || 'Everyone'}
-                          </span>
-                          {!notification.is_read && (
-                            <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1">
-                              New
+                {filteredNotifications.map((notification, idx) => {
+                  const displayTitle = translations[notification.id] || notification.title;
+                  return (
+                    <motion.div
+                      key={notification.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className={`bg-white/5 backdrop-blur rounded-2xl p-6 border ${
+                        !notification.is_read ? 'border-blue-500/50 bg-blue-500/5' : 'border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                              {displayTitle}
+                              <div className="flex items-center gap-0.5 ml-1">
+                                <TranslationDropdown 
+                                  text={notification.title} 
+                                  onTranslate={(translated) => {
+                                    setTranslations(prev => ({ ...prev, [notification.id]: translated }));
+                                  }}
+                                />
+                                <TextToSpeechButton text={notification.title} />
+                              </div>
+                            </h3>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(notification.role)}`}>
+                              {notification.role || 'Everyone'}
                             </span>
-                          )}
+                            {!notification.is_read && (
+                              <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1">
+                                New
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-white/70 mb-3">{notification.message}</p>
+                          <div className="flex items-center gap-4 text-white/40 text-sm">
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} /> {new Date(notification.date).toLocaleDateString()}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-white/70 mb-3">{notification.message}</p>
-                        <div className="flex items-center gap-4 text-white/40 text-sm">
-                          <span className="flex items-center gap-1">
-                            <Clock size={12} /> {new Date(notification.date).toLocaleDateString()}
-                          </span>
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleModifyNotification(notification)}
+                            className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors"
+                            title="Modify Notice"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNotification(notification.id)}
+                            className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                            title="Delete Notice"
+                          >
+                            <Trash2 size={18} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => handleModifyNotification(notification)}
-                          className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors"
-                          title="Modify Notice"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteNotification(notification.id)}
-                          className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-                          title="Delete Notice"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </motion.div>
@@ -394,7 +472,7 @@ export default function OthersPage() {
         )}
       </div>
 
-      {/* Modal for Notification */}
+      {/* Add/Modify Notice Modal with AI Voice Input */}
       <AnimatePresence>
         {showNotificationModal && (
           <motion.div
@@ -432,20 +510,72 @@ export default function OthersPage() {
               )}
 
               <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Notice Title *"
-                  value={newNotification.title}
-                  onChange={(e) => setNewNotification({...newNotification, title: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <textarea
-                  placeholder="Notice Message *"
-                  value={newNotification.message}
-                  onChange={(e) => setNewNotification({...newNotification, message: e.target.value})}
-                  rows={4}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 resize-none"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Notice Title *"
+                    value={newNotification.title}
+                    onChange={(e) => setNewNotification({...newNotification, title: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <button
+                      onClick={() => {
+                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                        if (!SpeechRecognition) {
+                          alert('Speech recognition not supported in this browser.');
+                          return;
+                        }
+                        const recognition = new SpeechRecognition();
+                        recognition.lang = 'en-US';
+                        recognition.onresult = (event) => {
+                          const transcript = event.results[0][0].transcript;
+                          handleVoiceInput('title', transcript);
+                        };
+                        recognition.start();
+                      }}
+                      className="text-purple-400 hover:text-purple-300 p-1 rounded"
+                      title="Voice input for title"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <textarea
+                    placeholder="Notice Message *"
+                    value={newNotification.message}
+                    onChange={(e) => setNewNotification({...newNotification, message: e.target.value})}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 resize-none pr-10"
+                  />
+                  <div className="absolute right-2 top-3">
+                    <button
+                      onClick={() => {
+                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                        if (!SpeechRecognition) {
+                          alert('Speech recognition not supported in this browser.');
+                          return;
+                        }
+                        const recognition = new SpeechRecognition();
+                        recognition.lang = 'en-US';
+                        recognition.onresult = (event) => {
+                          const transcript = event.results[0][0].transcript;
+                          handleVoiceInput('message', transcript);
+                        };
+                        recognition.start();
+                      }}
+                      className="text-purple-400 hover:text-purple-300 p-1 rounded"
+                      title="Voice input for message"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
                 
                 <div>
                   <label className="text-white/60 text-sm mb-2 block">Send to:</label>

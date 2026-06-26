@@ -4,8 +4,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Pencil, Trash2, Search, X,
-  CheckCircle, XCircle, Users, UserCheck, UserX, BookOpen
+  CheckCircle, XCircle, Users, UserCheck, UserX, BookOpen,
+  Globe
 } from 'lucide-react';
+// AI Imports
+import TranslationDropdown from '../../components/TranslationDropdown';
+import TextToSpeechButton from '../../components/TextToSpeechButton';
+import SpeechToTextButton from '../../components/SpeechToTextButton';
+import { bulkTranslate, supportedLanguages } from '../../utils/aiHelpers';
 
 interface Student {
   id: string;
@@ -34,6 +40,9 @@ export default function StudentsPage() {
   const [modalType, setModalType] = useState<'add' | 'modify'>('add');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [validationError, setValidationError] = useState('');
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+  const [showBulkTranslateDropdown, setShowBulkTranslateDropdown] = useState(false);
   const [formData, setFormData] = useState({
     admission_no: '',
     name: '',
@@ -210,6 +219,25 @@ export default function StudentsPage() {
     setIsModalOpen(true);
   };
 
+  // AI: Bulk Translate All Student Names
+  const handleBulkTranslate = async (langCode: string) => {
+    setIsTranslatingAll(true);
+    setShowBulkTranslateDropdown(false);
+    try {
+      const result = await bulkTranslate(students, langCode, 'name');
+      setTranslations(result);
+    } catch (error) {
+      console.error('Bulk translation error:', error);
+    } finally {
+      setIsTranslatingAll(false);
+    }
+  };
+
+  // AI: Speech-to-Text handler for form fields
+  const handleVoiceInput = (fieldName: string, transcript: string) => {
+    setFormData(prev => ({ ...prev, [fieldName]: transcript }));
+  };
+
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return s.name?.toLowerCase().includes(term);
@@ -234,6 +262,40 @@ export default function StudentsPage() {
             Student Management
           </h1>
           <p className="text-white/60">Manage all students, track their progress, and update records</p>
+        </div>
+
+        {/* AI - Bulk Translation Dropdown */}
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-white/50 text-sm flex items-center gap-1">
+            🌐 Translate All:
+            {isTranslatingAll && <span className="text-yellow-400 animate-pulse text-xs ml-1">translating...</span>}
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setShowBulkTranslateDropdown(!showBulkTranslateDropdown)}
+              disabled={isTranslatingAll}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white rounded-lg transition-colors text-sm disabled:opacity-50"
+            >
+              <Globe size={16} />
+              <span>Select Language</span>
+              <svg className={`w-4 h-4 transition-transform ${showBulkTranslateDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showBulkTranslateDropdown && (
+              <div className="absolute z-50 mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 p-1 min-w-[150px] max-h-60 overflow-y-auto">
+                {supportedLanguages.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => handleBulkTranslate(lang.code)}
+                    className="w-full text-left px-3 py-2 rounded text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    {lang.name} ({lang.code.toUpperCase()})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -269,14 +331,17 @@ export default function StudentsPage() {
         </div>
 
         <div className="flex flex-wrap gap-4 mb-6">
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[200px] relative">
             <input
               type="text"
               placeholder="Search by name, ID, class, or section..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
             />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <SpeechToTextButton onTranscript={(text) => setSearchTerm(text)} />
+            </div>
           </div>
           <select
             value={searchType}
@@ -313,30 +378,44 @@ export default function StudentsPage() {
                 ) : filteredStudents.length === 0 ? (
                   <tr><td colSpan={10} className="text-center py-8 text-white/60">No students found</td></tr>
                 ) : (
-                  filteredStudents.map((student, idx) => (
-                    <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3 text-white/80">{student.admission_no || student.student_id || student.id}</td>
-                      <td className="px-4 py-3 text-white">{student.name}</td>
-                      <td className="px-4 py-3 text-white/80">{student.class || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.section || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.roll_no || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.parent_name || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.parent_phone || '-'}</td>
-                      <td className="px-4 py-3 text-white/80">{student.student_contact || '-'}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleToggleStatus(student)}
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${student.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
-                        >
-                          {student.status === 'Active' ? '● Active' : '○ Inactive'}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button onClick={() => openModal('modify', student)} className="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
-                        <button onClick={() => handleDelete(student.admission_no || student.id)} className="text-red-400 hover:text-red-300">Delete</button>
-                      </td>
-                    </tr>
-                  ))
+                  filteredStudents.map((student, idx) => {
+                    const displayName = translations[student.id] || student.name;
+                    return (
+                      <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
+                        <td className="px-4 py-3 text-white/80">{student.admission_no || student.student_id || student.id}</td>
+                        <td className="px-4 py-3 text-white flex items-center gap-2">
+                          {displayName}
+                          <div className="flex items-center gap-0.5 ml-1">
+                            <TranslationDropdown 
+                              text={student.name} 
+                              onTranslate={(translated) => {
+                                setTranslations(prev => ({ ...prev, [student.id]: translated }));
+                              }}
+                            />
+                            <TextToSpeechButton text={student.name} />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-white/80">{student.class || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.section || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.roll_no || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent_name || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent_phone || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.student_contact || '-'}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleToggleStatus(student)}
+                            className={`px-3 py-1 rounded-full text-sm font-semibold ${student.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+                          >
+                            {student.status === 'Active' ? '● Active' : '○ Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => openModal('modify', student)} className="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
+                          <button onClick={() => handleDelete(student.admission_no || student.id)} className="text-red-400 hover:text-red-300">Delete</button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -344,7 +423,7 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Add/Modify Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -371,90 +450,54 @@ export default function StudentsPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Admission Number *"
-                  value={formData.admission_no}
-                  onChange={(e) => setFormData({...formData, admission_no: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Student Name *"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Class"
-                  value={formData.class}
-                  onChange={(e) => setFormData({...formData, class: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Section"
-                  value={formData.section}
-                  onChange={(e) => setFormData({...formData, section: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Roll Number"
-                  value={formData.roll_no}
-                  onChange={(e) => setFormData({...formData, roll_no: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Parent Name"
-                  value={formData.parent_name}
-                  onChange={(e) => setFormData({...formData, parent_name: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="tel"
-                  placeholder="Parent Phone"
-                  value={formData.parent_phone}
-                  onChange={(e) => setFormData({...formData, parent_phone: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="email"
-                  placeholder="Parent Email (must end with @gmail.com)"
-                  value={formData.parent_email}
-                  onChange={(e) => setFormData({...formData, parent_email: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="tel"
-                  placeholder="Student Contact"
-                  value={formData.student_contact}
-                  onChange={(e) => setFormData({...formData, student_contact: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="email"
-                  placeholder="Student Email (must end with @gmail.com)"
-                  value={formData.student_email}
-                  onChange={(e) => setFormData({...formData, student_email: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="text"
-                  placeholder="Guardian Name"
-                  value={formData.guardian_name}
-                  onChange={(e) => setFormData({...formData, guardian_name: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
-                <input
-                  type="tel"
-                  placeholder="Guardian Phone"
-                  value={formData.guardian_phone}
-                  onChange={(e) => setFormData({...formData, guardian_phone: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                />
+                {[
+                  { key: 'admission_no', placeholder: 'Admission Number *' },
+                  { key: 'name', placeholder: 'Student Name *' },
+                  { key: 'class', placeholder: 'Class' },
+                  { key: 'section', placeholder: 'Section' },
+                  { key: 'roll_no', placeholder: 'Roll Number' },
+                  { key: 'parent_name', placeholder: 'Parent Name' },
+                  { key: 'parent_phone', placeholder: 'Parent Phone' },
+                  { key: 'parent_email', placeholder: 'Parent Email' },
+                  { key: 'student_contact', placeholder: 'Student Contact' },
+                  { key: 'student_email', placeholder: 'Student Email' },
+                  { key: 'guardian_name', placeholder: 'Guardian Name' },
+                  { key: 'guardian_phone', placeholder: 'Guardian Phone' },
+                ].map((field) => (
+                  <div key={field.key} className="relative">
+                    <input
+                      type="text"
+                      placeholder={field.placeholder}
+                      value={formData[field.key as keyof typeof formData] || ''}
+                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <button
+                        onClick={() => {
+                          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                          if (!SpeechRecognition) {
+                            alert('Speech recognition not supported in this browser.');
+                            return;
+                          }
+                          const recognition = new SpeechRecognition();
+                          recognition.lang = 'en-US';
+                          recognition.onresult = (event) => {
+                            const transcript = event.results[0][0].transcript;
+                            handleVoiceInput(field.key, transcript);
+                          };
+                          recognition.start();
+                        }}
+                        className="text-purple-400 hover:text-purple-300 p-1 rounded"
+                        title={`Voice input for ${field.placeholder}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="flex items-center gap-4 mt-4">
