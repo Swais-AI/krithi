@@ -1,18 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { speakText } from '../utils/aiHelpers';
 
 export default function TextToSpeechButton({ text, label = 'Listen' }) {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleSpeak = () => {
-    if (!text) return;
+    if (!text || !isClient) return;
     
     setIsSpeaking(true);
     speakText(text);
     
-    // Reset after speech ends
     const checkSpeaking = setInterval(() => {
       if (!window.speechSynthesis.speaking) {
         setIsSpeaking(false);
@@ -20,6 +24,10 @@ export default function TextToSpeechButton({ text, label = 'Listen' }) {
       }
     }, 500);
   };
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <button

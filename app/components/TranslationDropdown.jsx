@@ -1,16 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import { supportedLanguages, translateText, getLanguageName } from '../utils/aiHelpers';
+import { useState, useEffect } from 'react';
+import { supportedLanguages, translateText } from '../utils/aiHelpers';
 
 export default function TranslationDropdown({ text, onTranslate, label = 'Translate' }) {
   const [targetLang, setTargetLang] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleTranslate = async () => {
-    if (!text) return;
+    if (!text || !isClient) return;
     setIsTranslating(true);
     try {
       const result = await translateText(text, targetLang);
@@ -28,6 +33,10 @@ export default function TranslationDropdown({ text, onTranslate, label = 'Transl
     setTargetLang(langCode);
     setTimeout(handleTranslate, 100);
   };
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <div className="relative inline-block">
