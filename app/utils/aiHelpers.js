@@ -12,7 +12,11 @@ const getGeminiClient = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
+<<<<<<< Updated upstream
 // Translation using FastAPI backend
+=======
+// Translation using FastAPI backend on EC2
+>>>>>>> Stashed changes
 export const translateText = async (text, targetLang = 'en') => {
   if (!text) return text;
 
@@ -86,7 +90,11 @@ export const startListening = (callback, lang = 'en-US') => {
   recognition.start();
 };
 
+<<<<<<< Updated upstream
 // Bulk Translate using FastAPI Backend
+=======
+// Bulk Translate using FastAPI Backend on EC2
+>>>>>>> Stashed changes
 export const bulkTranslate = async (items, targetLang = 'en', textField = 'name') => {
   if (!items || items.length === 0) return {};
 
@@ -96,7 +104,11 @@ export const bulkTranslate = async (items, targetLang = 'en', textField = 'name'
     if (textsToTranslate.length === 0) return {};
 
     // 2. Send them all at once in a SINGLE API request to your backend
+<<<<<<< Updated upstream
     const response = await fetch('http://localhost:8000/api/v1/admin/translate', {
+=======
+    const response = await fetch('http://16.112.236.67:8002/api/v1/admin/translate', {
+>>>>>>> Stashed changes
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
