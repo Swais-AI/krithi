@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { startListening } from '../utils/aiHelpers';
 
 export default function SpeechToTextButton({ onTranscript, placeholder = 'Search by voice...' }) {
   const [isListening, setIsListening] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleVoiceSearch = () => {
+    if (!isClient) return;
+    
     if (isListening) {
       setIsListening(false);
       return;
@@ -18,6 +25,10 @@ export default function SpeechToTextButton({ onTranscript, placeholder = 'Search
       if (onTranscript) onTranscript(transcript);
     });
   };
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <button

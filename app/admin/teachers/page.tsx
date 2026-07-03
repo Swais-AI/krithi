@@ -38,7 +38,7 @@ export default function TeachersPage() {
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
   const [showBulkTranslateDropdown, setShowBulkTranslateDropdown] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Record<string, any>>({
     teacher_id: '',
     name: '',
     subject: '',
@@ -95,7 +95,7 @@ export default function TeachersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          subjects: formData.subjects.split(',').map(s => s.trim()).filter(Boolean)
+          subjects: formData.subjects.split(',').map((s: string) => s.trim()).filter(Boolean)
         })
       });
       if (response.ok) {
@@ -121,7 +121,7 @@ export default function TeachersPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...formData,
-            subjects: formData.subjects.split(',').map(s => s.trim()).filter(Boolean),
+            subjects: formData.subjects.split(',').map((s: string) => s.trim()).filter(Boolean),
             teacher_id: selectedTeacher.teacher_id
           })
         });
@@ -227,10 +227,10 @@ export default function TeachersPage() {
 
   // AI: Voice input handler for form fields
   const handleVoiceInput = (fieldName: string, transcript: string) => {
-    setFormData(prev => ({ ...prev, [fieldName]: transcript }));
+    setFormData((prev: any) => ({ ...prev, [fieldName]: transcript }));
   };
 
-  const filteredTeachers = Array.isArray(teachers) ? teachers.filter(t => {
+  const filteredTeachers = Array.isArray(teachers) ? teachers.filter((t: Teacher) => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return t.name?.toLowerCase().includes(term);
     if (searchType === 'id') return t.teacher_id?.toLowerCase().includes(term);
@@ -239,7 +239,14 @@ export default function TeachersPage() {
   }) : [];
 
   const totalTeachers = teachers.length;
-  const activeTeachers = teachers.filter(t => t.status === 'Active').length;
+  const activeTeachers = teachers.filter((t: Teacher) => t.status === 'Active').length;
+
+  // Helper function to safely get form value
+  const getFormValue = (key: string) => {
+    const value = formData[key];
+    if (typeof value === 'boolean') return '';
+    return value || '';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
@@ -292,7 +299,7 @@ export default function TeachersPage() {
           </div>
           <div className="bg-gradient-to-r from-orange-500 to-yellow-500 rounded-2xl p-6">
             <p className="text-white/80 text-sm">Subjects Offered</p>
-            <p className="text-white text-4xl font-bold">{[...new Set(teachers.map(t => t.subject))].length}</p>
+            <p className="text-white text-4xl font-bold">{[...new Set(teachers.map((t: Teacher) => t.subject))].length}</p>
           </div>
         </div>
 
@@ -302,7 +309,7 @@ export default function TeachersPage() {
           </button>
           <button onClick={() => {
             const id = prompt('Enter Teacher ID to modify:');
-            const teacher = teachers.find(t => t.teacher_id === id);
+            const teacher = teachers.find((t: Teacher) => t.teacher_id === id);
             if (teacher) openModal('modify', teacher);
             else alert('Teacher not found!');
           }} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
@@ -357,7 +364,7 @@ export default function TeachersPage() {
                 ) : filteredTeachers.length === 0 ? (
                   <tr><td colSpan={10} className="text-center py-8 text-white/60">No teachers found</td></tr>
                 ) : (
-                  filteredTeachers.map((teacher, idx) => {
+                  filteredTeachers.map((teacher: Teacher, idx: number) => {
                     const displayName = translations[teacher.id] || teacher.name;
                     return (
                       <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
@@ -368,7 +375,7 @@ export default function TeachersPage() {
                             <TranslationDropdown 
                               text={teacher.name} 
                               onTranslate={(translated) => {
-                                setTranslations(prev => ({ ...prev, [teacher.id]: translated }));
+                                setTranslations((prev: any) => ({ ...prev, [teacher.id]: translated }));
                               }}
                             />
                             <TextToSpeechButton text={teacher.name} />
@@ -446,21 +453,21 @@ export default function TeachersPage() {
                     <input
                       type="text"
                       placeholder={field.placeholder}
-                      value={formData[field.key as keyof typeof formData] || ''}
-                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                      value={getFormValue(field.key)}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
                     />
                     <div className="absolute right-2 top-1/2 -translate-y-1/2">
                       <button
                         onClick={() => {
-                          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                          const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
                           if (!SpeechRecognition) {
                             alert('Speech recognition not supported in this browser.');
                             return;
                           }
                           const recognition = new SpeechRecognition();
                           recognition.lang = 'en-US';
-                          recognition.onresult = (event) => {
+                          recognition.onresult = (event: any) => {
                             const transcript = event.results[0][0].transcript;
                             handleVoiceInput(field.key, transcript);
                           };
@@ -483,7 +490,7 @@ export default function TeachersPage() {
                   <input
                     type="checkbox"
                     checked={formData.is_class_teacher}
-                    onChange={(e) => setFormData({...formData, is_class_teacher: e.target.checked})}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, is_class_teacher: e.target.checked }))}
                     className="w-4 h-4"
                   />
                   <label className="text-white">Is Class Teacher?</label>
@@ -492,7 +499,7 @@ export default function TeachersPage() {
                   <label className="text-white/80">Status:</label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, status: e.target.value }))}
                     className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   >
                     <option value="Active">Active</option>

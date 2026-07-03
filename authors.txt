@@ -1,0 +1,37 @@
+258ab60 - Ubuntu - feat: clean up admin dashboard, remove SWAIS website code
+8ea5400 - Ubuntu - chore: remove main website pages, keep only SGS dashboard
+d5ee29b - Krithi - feat: SGS Admin Dashboard with student and teacher management (mock data currently)
+0436e26 - Krithi - feat: add SGS School admin dashboard with student, teacher and others management
+909f8ee - Swais-AI - Merge pull request #3 from Swais-AI/enhance/solutions-page
+3a21ff4 - Bhuvan - Wire Solutions navbar button to open SolutionsMegaMenu overlay
+56b4335 - Bhuvan - Update contact email to murty.varanasi@swais.in across pages
+49768dd - Bhuvan - removed partnerships in nav
+a4f523c - Bhuvan - Add Collaborations link to navbar
+fe37fd6 - Bhuvan - Merge remote-tracking branch 'origin/main'
+be14869 - Bhuvan - address swapped
+f9cbd6f - Swais-AI - Refactor deployment script for GitHub Actions Pipeline to use NVM for Node version
+273ceaf - Swais-AI - Add GitHub Actions workflow for EC2 deployment
+2a56293 - Bhuvan - Revert to April 11 baseline (573eec9) — restore Academy in navbar
+8b4aa86 - Bhuvan - Keep ap-south-2 RDS endpoint in .env.example
+786e0cb - Bhuvan - Revert to April 18 baseline (7f0fc7c) per Murthy sir's request
+8993b81 - Bhuvan - Remove netlify.toml, add nginx.conf.example, finalize cookie fix
+b6dbbd2 - Bhuvan - logs
+83be92a - Bhuvan - update RDS endpoint to Hyderabad
+c767978 - Swais-AI - Merge pull request #1 from Swais-AI/master
+733360e - Bhuvan - google mail issue
+7f0fc7c - Bhuvan - new changes by murthy sir
+573eec9 - Bhuvan - Fix body background — dark theme across all public pages
+46f186c - Bhuvan - Fix white headings on light background across all public pages
+bb7fc28 - Bhuvan - Update deployment issues report — clean format, no fix commands, PDF-ready
+4db4db7 - Bhuvan - UI polish: fix heading visibility, branded loading screen, modern form fields, home navigation
+f5f3144 - Bhuvan - Fix 4 code-level bugs: modal response, warehouse auth guard, logout button
+3dca1b6 - Bhuvan - Add deployment issues tracker with fixes for localhost redirect and api.swais.in
+3dba251 - Bhuvan - Fix Dockerfile Python version + update env examples for production
+fc214a5 - Bhuvan - Fix hardcoded localhost in login + warehouse — production-ready
+6ed1e57 - Bhuvan - Add SWAIS favicon and app icon
+67b6b05 - Bhuvan - Remove old Node.js backend — Python FastAPI is the only backend now
+4439a4e - Bhuvan - Fix register page: use data directly from API response
+c7b3c84 - Bhuvan - Migrate backend from Node.js to Python FastAPI + add auth gates
+832fb6c - NAVYASRIATKURI - this is second commit with backend ,dynamic version-1
+7394038 - Bhuvan - new enhanced chanes
+ed15802 - NAVYASRIATKURI - frontend initial commit
