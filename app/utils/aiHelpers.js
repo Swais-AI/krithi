@@ -12,27 +12,35 @@ const getGeminiClient = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
-// Language Translator using Gemini
+// Translation using FastAPI backend
 export const translateText = async (text, targetLang = 'en') => {
   if (!text) return text;
-  
-  const genAI = getGeminiClient();
-  if (!genAI) return text;
 
   try {
-    const model = genAI.getGenerativeModel({ 
-      model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' 
+    const response = await fetch('http://localhost:8000/api/v1/admin/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        targetLanguage: targetLang,
+        userInfo: {
+          name: 'Admin',
+          email: 'admin@sgs.com',
+          role: 'Admin'
+        }
+      })
     });
-    
-    const prompt = `Translate the following text to ${targetLang}. Only return the translated text, nothing else: "${text}"`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text() || text;
+
+    const data = await response.json();
+    return data.translated || data.error || text;
   } catch (error) {
     console.error('Translation error:', error);
     return text;
   }
 };
+  
 
 // Text-to-Speech (Read Aloud)
 export const speakText = (text, lang = 'en-US') => {
