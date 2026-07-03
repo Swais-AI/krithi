@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supportedLanguages, translateText } from '../utils/aiHelpers';
 
 export default function TranslationDropdown({ text, onTranslate, label = 'Translate' }) {
@@ -8,19 +8,15 @@ export default function TranslationDropdown({ text, onTranslate, label = 'Transl
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const handleTranslate = async () => {
-    if (!text || !isClient) return;
+  const handleTranslate = async (selectedLang) => {
+    const langToUse = selectedLang || targetLang;
+    if (!text) return;
     setIsTranslating(true);
     try {
-      const result = await translateText(text, targetLang);
+      const result = await translateText(text, langToUse);
       setTranslatedText(result);
-      if (onTranslate) onTranslate(result, targetLang);
+      if (onTranslate) onTranslate(result, langToUse);
     } catch (error) {
       console.error('Translation error:', error);
     } finally {
@@ -31,12 +27,8 @@ export default function TranslationDropdown({ text, onTranslate, label = 'Transl
 
   const handleLanguageChange = (langCode) => {
     setTargetLang(langCode);
-    setTimeout(handleTranslate, 100);
+    handleTranslate(langCode);
   };
-
-  if (!isClient) {
-    return null;
-  }
 
   return (
     <div className="relative inline-block">
@@ -62,7 +54,7 @@ export default function TranslationDropdown({ text, onTranslate, label = 'Transl
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 p-2 min-w-[150px] max-h-60 overflow-y-auto">
+        <div className="absolute z-[9999] mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 p-2 min-w-[150px] max-h-60 overflow-y-auto top-full left-0">
           <div className="text-xs text-white/50 mb-1 px-2">Translate to:</div>
           {supportedLanguages.map((lang) => (
             <button
