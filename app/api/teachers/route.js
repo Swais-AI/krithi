@@ -47,6 +47,13 @@ export async function POST(request) {
       subjects, contact, email, status
     } = body;
     
+    // Convert "All" to NULL for class_id
+    const classIdValue = (class_id === 'All' || class_id === 'ALL' || class_id === '') ? null : parseInt(class_id);
+    
+    // Convert "All" to NULL for sections
+    const section1Value = (section_1 === 'All' || section_1 === 'ALL' || section_1 === '') ? null : section_1;
+    const section2Value = (section_2 === 'All' || section_2 === 'ALL' || section_2 === '') ? null : section_2;
+    
     const isActive = status === 'Active';
     
     const result = await pool.query(
@@ -55,8 +62,8 @@ export async function POST(request) {
         section_1, section_2, role, is_class_teacher,
         subjects, phone, email_id, is_active) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      [teacher_id, name, subject, qualification, class_id,
-       section_1, section_2, role, is_class_teacher,
+      [teacher_id, name, subject, qualification, classIdValue,
+       section1Value, section2Value, role, is_class_teacher,
        subjects, contact, email, isActive]
     );
     
@@ -68,8 +75,8 @@ export async function POST(request) {
     console.error('Error adding teacher:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
-
+} 
+      
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -78,6 +85,10 @@ export async function PUT(request) {
       section_1, section_2, role, is_class_teacher,
       subjects, contact, email, status
     } = body;
+    
+    const classIdValue = (class_id === 'All' || class_id === 'ALL' || class_id === '') ? null : parseInt(class_id);
+    const section1Value = (section_1 === 'All' || section_1 === 'ALL' || section_1 === '') ? null : section_1;
+    const section2Value = (section_2 === 'All' || section_2 === 'ALL' || section_2 === '') ? null : section_2;
     
     const isActive = status === 'Active';
     
@@ -88,8 +99,8 @@ export async function PUT(request) {
            role = $7, is_class_teacher = $8, subjects = $9,
            phone = $10, email_id = $11, is_active = $12
        WHERE teacher_id = $13`,
-      [name, subject, qualification, class_id,
-       section_1, section_2, role, is_class_teacher,
+      [name, subject, qualification, classIdValue,
+       section1Value, section2Value, role, is_class_teacher,
        subjects, contact, email, isActive, teacher_id]
     );
     

@@ -24,9 +24,11 @@ export default function AdminLayout({
   const router = useRouter();
 
   const handleLogout = () => {
-    localStorage.clear();
-    sessionStorage.clear();
-    router.push('/');
+   if (window.confirm('Are you sure you want to logout from this page?')) {
+      localStorage.clear();
+      sessionStorage.clear();
+      router.push('/');
+   }
   };
 
   const menuItems = [

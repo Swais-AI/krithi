@@ -56,22 +56,24 @@ export default function TranslationDropdown({ text, onTranslate, label = 'Transl
       {showDropdown && (
         <div className="absolute z-[9999] mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 p-2 min-w-[150px] max-h-60 overflow-y-auto top-full left-0">
           <div className="text-xs text-white/50 mb-1 px-2">Translate to:</div>
-          {supportedLanguages.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => handleLanguageChange(lang.code)}
-              className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
-                targetLang === lang.code
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              {lang.name}
-              {targetLang === lang.code && ' ✓'}
-            </button>
-          ))}
-        </div>
-      )}
+   	  {supportedLanguages.map((lang) => (
+           <button
+             key={lang.code}
+             onClick={() => handleLanguageChange(lang.code)}
+             className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
+              targetLang === lang.code
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/70 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            {lang.name}
+            {targetLang === lang.code && ' ✓'}
+          </button>
+        ))}
+      </div>
+    )}
+          
+        
     </div>
   );
 }
