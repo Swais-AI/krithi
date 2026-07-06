@@ -17,7 +17,7 @@ export const translateText = async (text, targetLang = 'en') => {
   if (!text) return text;
 
   try {
-    const response = await fetch('http://16.112.236.67:8002/api/v1/admin/translate', {
+    const response = await fetch('https://staging.sgs.swais.in/api/admin/api/v1/admin/translate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export const bulkTranslate = async (items, targetLang = 'en', textField = 'name'
     const textsToTranslate = items.map(item => item[textField]).filter(Boolean);
     if (textsToTranslate.length === 0) return {};
 
-    const response = await fetch('http://16.112.236.67:8002/api/v1/admin/translate', {
+    const response = await fetch('https://staging.sgs.swais.in/api/admin/api/v1/admin/translate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
