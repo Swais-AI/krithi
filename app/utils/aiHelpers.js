@@ -12,16 +12,12 @@ const getGeminiClient = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
-<<<<<<< Updated upstream
-// Translation using FastAPI backend
-=======
 // Translation using FastAPI backend on EC2
->>>>>>> Stashed changes
 export const translateText = async (text, targetLang = 'en') => {
   if (!text) return text;
 
   try {
-    const response = await fetch('http://16.112.236.67:8002/api/v1/admin/translate', {
+    const response = await fetch('https://staging.sgs.swais.in/api/admin/api/v1/admin/translate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -49,7 +45,6 @@ export const translateText = async (text, targetLang = 'en') => {
 export const speakText = (text, lang = 'en-US') => {
   if (!text || !window.speechSynthesis) return;
   
-  // Cancel any ongoing speech
   window.speechSynthesis.cancel();
   
   const utterance = new SpeechSynthesisUtterance(text);
@@ -90,31 +85,21 @@ export const startListening = (callback, lang = 'en-US') => {
   recognition.start();
 };
 
-<<<<<<< Updated upstream
-// Bulk Translate using FastAPI Backend
-=======
 // Bulk Translate using FastAPI Backend on EC2
->>>>>>> Stashed changes
 export const bulkTranslate = async (items, targetLang = 'en', textField = 'name') => {
   if (!items || items.length === 0) return {};
 
   try {
-    // 1. Gather all texts into a single array
     const textsToTranslate = items.map(item => item[textField]).filter(Boolean);
     if (textsToTranslate.length === 0) return {};
 
-    // 2. Send them all at once in a SINGLE API request to your backend
-<<<<<<< Updated upstream
-    const response = await fetch('http://localhost:8000/api/v1/admin/translate', {
-=======
-    const response = await fetch('http://16.112.236.67:8002/api/v1/admin/translate', {
->>>>>>> Stashed changes
+    const response = await fetch('https://staging.sgs.swais.in/api/admin/api/v1/admin/translate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: textsToTranslate, // Passing the entire array here
+        text: textsToTranslate,
         targetLanguage: targetLang,
         userInfo: {
           name: 'Admin',
@@ -125,16 +110,12 @@ export const bulkTranslate = async (items, targetLang = 'en', textField = 'name'
     });
 
     const data = await response.json();
-    
-    // Depending on what your backend returns (data.translated or data.translations)
     const translatedArray = data.translated || data.translations || [];
     
-    // 3. Map the returned translations back to the original item IDs
     const resultMap = {};
     let translationIndex = 0;
     
     items.forEach((item) => {
-      // Map correctly taking into account the filtered items
       if (item[textField]) {
          resultMap[item.id] = translatedArray[translationIndex] || item[textField];
          translationIndex++;
@@ -168,4 +149,4 @@ export const supportedLanguages = [
 export const getLanguageName = (code) => {
   const lang = supportedLanguages.find(l => l.code === code);
   return lang ? lang.name : code;
-}
+};
