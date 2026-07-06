@@ -50,6 +50,13 @@ export async function POST(request) {
       status
     } = body;
     
+      if (!admission_no || !admission_no.match(/^S/)) {
+      return NextResponse.json(
+        { error: 'Admission Number must start with "S" (Student)' },
+        { status: 400 }
+      );
+    }
+    
     const result = await pool.query(
       `INSERT INTO sgs_student_master 
        (admission_no, full_name, class_name, section, roll_no,

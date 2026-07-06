@@ -71,12 +71,18 @@ export default function TeachersPage() {
   };
 
   const validateForm = () => {
-    if (!formData.name.trim()) {
-      setValidationError('Teacher Name is required');
+    // Validate Teacher ID prefix (T=Teacher, H=Headmaster)
+    const teacherId = formData.teacher_id.trim();
+    if (!teacherId) {
+      setValidationError('Teacher ID is required');
       return false;
     }
-    if (!formData.teacher_id.trim()) {
-      setValidationError('Teacher ID is required');
+    if (!teacherId.match(/^[TH]/)) {
+      setValidationError('Teacher ID must start with "T" (Teacher) or "H" (Headmaster)');
+      return false;
+    }
+    if (!formData.name.trim()) {
+      setValidationError('Teacher Name is required');
       return false;
     }
     if (formData.email && !formData.email.includes('@')) {
@@ -437,14 +443,14 @@ export default function TeachersPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { key: 'teacher_id', placeholder: 'Teacher ID *' },
+                  { key: 'teacher_id', placeholder: 'Teacher ID * (T=Teacher, H=Headmaster)' },
                   { key: 'name', placeholder: 'Teacher Name *' },
                   { key: 'subject', placeholder: 'Subject' },
                   { key: 'qualification', placeholder: 'Qualification' },
                   { key: 'class_id', placeholder: 'Class ID' },
                   { key: 'section_1', placeholder: 'Section 1' },
                   { key: 'section_2', placeholder: 'Section 2' },
-                  { key: 'role', placeholder: 'Role' },
+                  { key: 'role', placeholder: 'Role (auto-detected from ID)' },
                   { key: 'subjects', placeholder: 'Subjects (comma separated)' },
                   { key: 'contact', placeholder: 'Contact Number' },
                   { key: 'email', placeholder: 'Email' },

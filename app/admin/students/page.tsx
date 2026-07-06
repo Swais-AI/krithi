@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Pencil, Trash2, Search, X,
-  CheckCircle, XCircle, Users, UserCheck, UserX, BookOpen,
-  Globe
+  CheckCircle, XCircle, Users, UserCheck, UserX, BookOpen, Globe
 } from 'lucide-react';
 // AI Imports
 import TranslationDropdown from '../../components/TranslationDropdown';
@@ -82,12 +81,18 @@ export default function StudentsPage() {
   };
 
   const validateForm = () => {
-    if (!formData.name.trim()) {
-      setValidationError('Student Name is required');
+    // Validate Student ID prefix (S=Student)
+    const admissionNo = formData.admission_no.trim();
+    if (!admissionNo) {
+      setValidationError('Admission Number is required');
       return false;
     }
-    if (!formData.admission_no.trim()) {
-      setValidationError('Admission Number is required');
+    if (!admissionNo.match(/^S/)) {
+      setValidationError('Admission Number must start with "S" (Student)');
+      return false;
+    }
+    if (!formData.name.trim()) {
+      setValidationError('Student Name is required');
       return false;
     }
     if (formData.parent_email && !formData.parent_email.includes('@')) {
@@ -451,7 +456,7 @@ export default function StudentsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { key: 'admission_no', placeholder: 'Admission Number *' },
+                  { key: 'admission_no', placeholder: 'Admission Number * (S=Student)' },
                   { key: 'name', placeholder: 'Student Name *' },
                   { key: 'class', placeholder: 'Class' },
                   { key: 'section', placeholder: 'Section' },
