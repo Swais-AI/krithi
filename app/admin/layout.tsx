@@ -26,7 +26,7 @@ export default function AdminLayout({
   const handleLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
-    router.push('/login');
+    router.push('/');
   };
 
   const menuItems = [
