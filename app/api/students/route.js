@@ -1,51 +1,41 @@
 import { NextResponse } from 'next/server';
-import postgres from 'postgres';
+import { Pool } from 'pg';
 
-export const dynamic = 'force-dynamic';
-
-const sql = postgres(process.env.DATABASE_URL, { 
-  ssl: 'require'
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  ssl: { rejectUnauthorized: false }
 });
 
-// Email validation - must end with @gmail.com
-const validateEmail = (email) => {
-  if (!email || email.trim() === '') return null;
-  const trimmedEmail = email.trim().toLowerCase();
-  if (trimmedEmail.endsWith('@gmail.com')) {
-    return trimmedEmail;
-  }
-  return null;
-};
-
-export async function GET(request) {
+export async function GET() {
   try {
-    const students = await sql`
+    const result = await pool.query(`
       SELECT 
         student_id as id,
-        admission_no as admissionNo,
+        admission_no,
         full_name as name,
-        class as class,
-        section as section,
-        roll_no as rollNo,
-        parent1_name as parentName,
-        parent1_phone as parentPhone,
-        parent1_email as parentEmail,
-        student_phone as contact,
-        student_email as email,
-        guardian_name as guardianName,
-        guardian_phone as guardianPhone,
-        CASE WHEN is_active = true THEN 'active' ELSE 'inactive' END as status
+        class_name as class,
+        section,
+        roll_no,
+        parent1_name as parent_name,
+        parent1_phone as parent_phone,
+        parent1_email as parent_email,
+        student_phone as student_contact,
+        student_email,
+        guardian_name,
+        guardian_phone,
+        record_status as status
       FROM sgs_student_master
-      WHERE record_status = 'Active' OR record_status IS NULL
-      ORDER BY student_id DESC
-      LIMIT 100
-    `;
-    
-    console.log('Returning', students.length, 'students');
-    return NextResponse.json({ success: true, students: students });
+      WHERE record_status != 'Deleted'
+      ORDER BY student_id
+    `);
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Database Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('Database error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -53,56 +43,88 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { 
-      admissionNo, name, class: className, section, rollNo,
-      parentName, parentPhone, parentEmail,
-      contact, email, guardianName, guardianPhone, status
+      admission_no, name, class: className, section, roll_no,
+      parent_name, parent_phone, parent_email,
+      student_contact, student_email,
+      guardian_name, guardian_phone,
+      status
     } = body;
     
-    const isActive = status === 'active';
-    const validEmail = validateEmail(email);
-    const validParentEmail = validateEmail(parentEmail);
+      if (!admission_no || !admission_no.match(/^S/)) {
+      return NextResponse.json(
+        { error: 'Admission Number must start with "S" (Student)' },
+        { status: 400 }
+      );
+    }
     
-    const result = await sql`
-      INSERT INTO sgs_student_master (
-        admission_no,
-        full_name,
-        class,
-        section,
-        roll_no,
-        parent1_name,
-        parent1_phone,
-        parent1_email,
-        student_phone,
-        student_email,
-        guardian_name,
-        guardian_phone,
-        is_active,
-        created_datetime,
-        record_status
-      )
-      VALUES (
-        ${admissionNo || null},
-        ${name}, 
-        ${className || null},
-        ${section || null},
-        ${rollNo || null},
-        ${parentName || null},
-        ${parentPhone || null},
-        ${validParentEmail},
-        ${contact || null}, 
-        ${validEmail},
-        ${guardianName || null},
-        ${guardianPhone || null},
-        ${isActive},
-        NOW(),
-        'Active'
-      )
-      RETURNING student_id as id
-    `;
+    const result = await pool.query(
+      `INSERT INTO sgs_student_master 
+       (admission_no, full_name, class_name, section, roll_no,
+        parent1_name, parent1_phone, parent1_email,
+        student_phone, student_email, guardian_name, guardian_phone,
+        record_status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [admission_no, name, className, section, roll_no,
+       parent_name, parent_phone, parent_email,
+       student_contact, student_email, guardian_name, guardian_phone,
+       status || 'Active']
+    );
     
-    return NextResponse.json({ success: true, message: 'Student added successfully', student: result[0] });
+    return NextResponse.json({ 
+      success: true,
+      student: result.rows[0]
+    }, { status: 201 });
   } catch (error) {
-    console.error('Error inserting student:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('Error adding student:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { 
+      admission_no, name, class: className, section, roll_no,
+      parent_name, parent_phone, parent_email,
+      student_contact, student_email,
+      guardian_name, guardian_phone,
+      status, id
+    } = body;
+    
+    await pool.query(
+      `UPDATE sgs_student_master 
+       SET full_name = $1, class_name = $2, section = $3, roll_no = $4,
+           parent1_name = $5, parent1_phone = $6, parent1_email = $7,
+           student_phone = $8, student_email = $9,
+           guardian_name = $10, guardian_phone = $11,
+           record_status = $12
+       WHERE admission_no = $13 OR student_id = $14`,
+      [name, className, section, roll_no,
+       parent_name, parent_phone, parent_email,
+       student_contact, student_email,
+       guardian_name, guardian_phone,
+       status, admission_no, id]
+    );
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error updating student:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    await pool.query(
+      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1 OR student_id = $1`,
+      [id]
+    );
+    
+    return NextResponse.json({ message: 'Student deleted successfully' });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

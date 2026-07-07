@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  assetPrefix: '/admin',
   reactStrictMode: true,
   // Ignore warnings from jsonwebtoken (Node.js APIs not available in Edge)
   webpack: (config, { isServer }) => {
@@ -18,4 +19,4 @@ const nextConfig = {
   staticPageGenerationTimeout: 120,
 };
 
-export default nextConfig;
+module.exports = nextConfig;

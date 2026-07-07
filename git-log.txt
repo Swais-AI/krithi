@@ -1,0 +1,43 @@
+* 258ab60 feat: clean up admin dashboard, remove SWAIS website code
+* 8ea5400 chore: remove main website pages, keep only SGS dashboard
+* d5ee29b feat: SGS Admin Dashboard with student and teacher management (mock data currently)
+* 0436e26 feat: add SGS School admin dashboard with student, teacher and others management
+*   909f8ee Merge pull request #3 from Swais-AI/enhance/solutions-page
+|\  
+| * 3a21ff4 Wire Solutions navbar button to open SolutionsMegaMenu overlay
+|/  
+* 56b4335 Update contact email to murty.varanasi@swais.in across pages
+* 49768dd removed partnerships in nav
+* a4f523c Add Collaborations link to navbar
+*   fe37fd6 Merge remote-tracking branch 'origin/main'
+|\  
+| * f9cbd6f Refactor deployment script for GitHub Actions Pipeline to use NVM for Node version
+| * 273ceaf Add GitHub Actions workflow for EC2 deployment
+* | be14869 address swapped
+|/  
+* 2a56293 Revert to April 11 baseline (573eec9) — restore Academy in navbar
+* 8b4aa86 Keep ap-south-2 RDS endpoint in .env.example
+* 786e0cb Revert to April 18 baseline (7f0fc7c) per Murthy sir's request
+* 8993b81 Remove netlify.toml, add nginx.conf.example, finalize cookie fix
+* b6dbbd2 logs
+* 83be92a update RDS endpoint to Hyderabad
+*   c767978 Merge pull request #1 from Swais-AI/master
+|\  
+| * 733360e google mail issue
+|/  
+* 7f0fc7c new changes by murthy sir
+* 573eec9 Fix body background — dark theme across all public pages
+* 46f186c Fix white headings on light background across all public pages
+* bb7fc28 Update deployment issues report — clean format, no fix commands, PDF-ready
+* 4db4db7 UI polish: fix heading visibility, branded loading screen, modern form fields, home navigation
+* f5f3144 Fix 4 code-level bugs: modal response, warehouse auth guard, logout button
+* 3dca1b6 Add deployment issues tracker with fixes for localhost redirect and api.swais.in
+* 3dba251 Fix Dockerfile Python version + update env examples for production
+* fc214a5 Fix hardcoded localhost in login + warehouse — production-ready
+* 6ed1e57 Add SWAIS favicon and app icon
+* 67b6b05 Remove old Node.js backend — Python FastAPI is the only backend now
+* 4439a4e Fix register page: use data directly from API response
+* c7b3c84 Migrate backend from Node.js to Python FastAPI + add auth gates
+* 832fb6c this is second commit with backend ,dynamic version-1
+* 7394038 new enhanced chanes
+* ed15802 frontend initial commit

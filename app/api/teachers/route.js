@@ -1,47 +1,40 @@
 import { NextResponse } from 'next/server';
-import postgres from 'postgres';
+import { Pool } from 'pg';
 
-export const dynamic = 'force-dynamic';
-
-const sql = postgres(process.env.DATABASE_URL, { 
-  ssl: 'require'
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  ssl: { rejectUnauthorized: false }
 });
 
-const validateEmail = (email) => {
-  if (!email || email.trim() === '') return null;
-  const trimmedEmail = email.trim().toLowerCase();
-  if (trimmedEmail.endsWith('@gmail.com')) {
-    return trimmedEmail;
-  }
-  return null;
-};
-
-export async function GET(request) {
+export async function GET() {
   try {
-    const teachers = await sql`
+    const result = await pool.query(`
       SELECT 
-        teacher_id as id,
+        teacher_id,
         full_name as name,
         subject_name as subject,
-        qualification as qualification,
-        class_id as classId,
-        section_1 as section1,
-        section_2 as section2,
-        role as role,
+        qualification,
+        class_id,
+        section_1,
+        section_2,
+        role,
+        is_class_teacher,
+        subjects,
         phone as contact,
         email_id as email,
-        CASE WHEN is_class_teacher = true THEN 'Y' ELSE '' END as isClassTeacher,
-        subjects as subjects,
-        CASE WHEN is_active = true THEN 'active' ELSE 'inactive' END as status
+        CASE WHEN is_active = true THEN 'Active' ELSE 'Inactive' END as status
       FROM sgs_teacher_master
-      ORDER BY teacher_id DESC
-      LIMIT 100
-    `;
-    
-    return NextResponse.json({ success: true, teachers: teachers });
+      WHERE is_active = true
+      ORDER BY teacher_id
+    `);
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Database Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('Database error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -49,52 +42,98 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { 
-      name, subject, qualification, classId, section1, section2, 
-      role, contact, email, isClassTeacher, subjects, status
+      teacher_id, name, subject, qualification, class_id,
+      section_1, section_2, role, is_class_teacher,
+      subjects, contact, email, status
     } = body;
     
-    const isActive = status === 'active';
-    const validEmail = validateEmail(email);
-    const isClassTeacherFlag = isClassTeacher === 'Y';
-    const subjectsArray = subjects ? subjects.split(',').map(s => s.trim()) : [];
+    // Validate Teacher ID prefix (T=Teacher, H=Headmaster)
+    if (!teacher_id || !teacher_id.match(/^[TH]/)) {
+      return NextResponse.json(
+        { error: 'Teacher ID must start with "T" (Teacher) or "H" (Headmaster)' },
+        { status: 400 }
+      );
+    }
     
-    const result = await sql`
-      INSERT INTO sgs_teacher_master (
-        full_name,
-        subject_name,
-        qualification,
-        class_id,
-        section_1,
-        section_2,
-        role,
-        phone,
-        email_id,
-        is_class_teacher,
-        subjects,
-        is_active,
-        created_at
-      )
-      VALUES (
-        ${name}, 
-        ${subject || null},
-        ${qualification || null},
-        ${classId || null},
-        ${section1 || null},
-        ${section2 || null},
-        ${role || 'TEACHER'},
-        ${contact || null}, 
-        ${validEmail},
-        ${isClassTeacherFlag},
-        ${subjectsArray},
-        ${isActive},
-        NOW()
-      )
-      RETURNING teacher_id as id
-    `;
+    // Determine role based on ID prefix
+    const determinedRole = teacher_id.startsWith('H') ? 'Headmaster' : 'Teacher';
     
-    return NextResponse.json({ success: true, message: 'Teacher added successfully', teacher: result[0] });
+    const isActive = status === 'Active';
+    
+    // Convert "All" to NULL for class_id
+    const classIdValue = (class_id === 'All' || class_id === 'ALL' || class_id === '') ? null : parseInt(class_id);
+    
+    // Convert "All" to NULL for sections
+    const section1Value = (section_1 === 'All' || section_1 === 'ALL' || section_1 === '') ? null : section_1;
+    const section2Value = (section_2 === 'All' || section_2 === 'ALL' || section_2 === '') ? null : section_2;
+    
+    const result = await pool.query(
+      `INSERT INTO sgs_teacher_master 
+       (teacher_id, full_name, subject_name, qualification, class_id,
+        section_1, section_2, role, is_class_teacher,
+        subjects, phone, email_id, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [teacher_id, name, subject, qualification, classIdValue,
+       section1Value, section2Value, determinedRole, is_class_teacher,
+       subjects, contact, email, isActive]
+    );
+    
+    return NextResponse.json({ 
+      success: true,
+      teacher: result.rows[0]
+    }, { status: 201 });
   } catch (error) {
-    console.error('Error inserting teacher:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('Error adding teacher:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { 
+      teacher_id, name, subject, qualification, class_id,
+      section_1, section_2, role, is_class_teacher,
+      subjects, contact, email, status
+    } = body;
+    
+    const isActive = status === 'Active';
+    
+    const classIdValue = (class_id === 'All' || class_id === 'ALL' || class_id === '') ? null : parseInt(class_id);
+    const section1Value = (section_1 === 'All' || section_1 === 'ALL' || section_1 === '') ? null : section_1;
+    const section2Value = (section_2 === 'All' || section_2 === 'ALL' || section_2 === '') ? null : section_2;
+    
+    await pool.query(
+      `UPDATE sgs_teacher_master 
+       SET full_name = $1, subject_name = $2, qualification = $3,
+           class_id = $4, section_1 = $5, section_2 = $6,
+           role = $7, is_class_teacher = $8, subjects = $9,
+           phone = $10, email_id = $11, is_active = $12
+       WHERE teacher_id = $13`,
+      [name, subject, qualification, classIdValue,
+       section1Value, section2Value, role, is_class_teacher,
+       subjects, contact, email, isActive, teacher_id]
+    );
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error updating teacher:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    await pool.query(
+      `UPDATE sgs_teacher_master SET is_active = false WHERE teacher_id = $1`,
+      [id]
+    );
+    
+    return NextResponse.json({ message: 'Teacher deleted successfully' });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

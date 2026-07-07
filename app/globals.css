@@ -1,1 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss";/* SGS Logo Styling */
+.brand-logo {
+  width: 172px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
