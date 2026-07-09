@@ -81,7 +81,6 @@ export default function StudentsPage() {
   };
 
   const validateForm = () => {
-    // Validate Student ID prefix (S=Student)
     const admissionNo = formData.admission_no.trim();
     if (!admissionNo) {
       setValidationError('Admission Number is required');
@@ -224,7 +223,6 @@ export default function StudentsPage() {
     setIsModalOpen(true);
   };
 
-  // AI: Bulk Translate All Student Names
   const handleBulkTranslate = async (langCode: string) => {
     setIsTranslatingAll(true);
     setShowBulkTranslateDropdown(false);
@@ -238,7 +236,6 @@ export default function StudentsPage() {
     }
   };
 
-  // AI: Speech-to-Text handler for form fields
   const handleVoiceInput = (fieldName: string, transcript: string) => {
     setFormData(prev => ({ ...prev, [fieldName]: transcript }));
   };
@@ -269,7 +266,7 @@ export default function StudentsPage() {
           <p className="text-white/60">Manage all students, track their progress, and update records</p>
         </div>
 
-        {/* AI - Bulk Translation Dropdown */}
+        {/* Bulk Translation Dropdown */}
         <div className="flex items-center gap-3 mb-4">
           <span className="text-white/50 text-sm flex items-center gap-1">
             🌐 Translate All:
@@ -428,7 +425,7 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* Add/Modify Modal */}
+      {/* Add/Modify Student Modal with Labels */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -455,58 +452,130 @@ export default function StudentsPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { key: 'admission_no', placeholder: 'Admission Number * (S=Student)' },
-                  { key: 'name', placeholder: 'Student Name *' },
-                  { key: 'class', placeholder: 'Class' },
-                  { key: 'section', placeholder: 'Section' },
-                  { key: 'roll_no', placeholder: 'Roll Number' },
-                  { key: 'parent_name', placeholder: 'Parent Name' },
-                  { key: 'parent_phone', placeholder: 'Parent Phone' },
-                  { key: 'parent_email', placeholder: 'Parent Email' },
-                  { key: 'student_contact', placeholder: 'Student Contact' },
-                  { key: 'student_email', placeholder: 'Student Email' },
-                  { key: 'guardian_name', placeholder: 'Guardian Name' },
-                  { key: 'guardian_phone', placeholder: 'Guardian Phone' },
-                ].map((field) => (
-                  <div key={field.key} className="relative">
-                    <input
-                      type="text"
-                      placeholder={field.placeholder}
-                      value={formData[field.key as keyof typeof formData] || ''}
-                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      <button
-                        onClick={() => {
-                          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                          if (!SpeechRecognition) {
-                            alert('Speech recognition not supported in this browser.');
-                            return;
-                          }
-                          const recognition = new SpeechRecognition();
-                          recognition.lang = 'en-US';
-                          recognition.onresult = (event) => {
-                            const transcript = event.results[0][0].transcript;
-                            handleVoiceInput(field.key, transcript);
-                          };
-                          recognition.start();
-                        }}
-                        className="text-purple-400 hover:text-purple-300 p-1 rounded"
-                        title={`Voice input for ${field.placeholder}`}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Admission Number * (S=Student)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., S001"
+                    value={formData.admission_no}
+                    onChange={(e) => setFormData({...formData, admission_no: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Student Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter student name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Class</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 10"
+                    value={formData.class}
+                    onChange={(e) => setFormData({...formData, class: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Section</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., A"
+                    value={formData.section}
+                    onChange={(e) => setFormData({...formData, section: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Roll Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 01"
+                    value={formData.roll_no}
+                    onChange={(e) => setFormData({...formData, roll_no: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Parent Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter parent name"
+                    value={formData.parent_name}
+                    onChange={(e) => setFormData({...formData, parent_name: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Parent Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g., 9876543210"
+                    value={formData.parent_phone}
+                    onChange={(e) => setFormData({...formData, parent_phone: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Parent Email</label>
+                  <input
+                    type="email"
+                    placeholder="parent@email.com"
+                    value={formData.parent_email}
+                    onChange={(e) => setFormData({...formData, parent_email: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Student Contact</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g., 9876543211"
+                    value={formData.student_contact}
+                    onChange={(e) => setFormData({...formData, student_contact: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Student Email</label>
+                  <input
+                    type="email"
+                    placeholder="student@email.com"
+                    value={formData.student_email}
+                    onChange={(e) => setFormData({...formData, student_email: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Guardian Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter guardian name"
+                    value={formData.guardian_name}
+                    onChange={(e) => setFormData({...formData, guardian_name: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Guardian Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g., 9876543212"
+                    value={formData.guardian_phone}
+                    onChange={(e) => setFormData({...formData, guardian_phone: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-4 mt-4">
-                <label className="text-white/80">Status:</label>
+                <label className="text-white/70 text-sm">Status:</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}

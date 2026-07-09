@@ -32,10 +32,10 @@ export default function AdminLayout({
   };
 
   const menuItems = [
-    { id: 'students', name: 'Students', icon: Users, path: '/admin/students', color: 'from-blue-500 to-cyan-500' },
-    { id: 'teachers', name: 'Teachers', icon: BookOpen, path: '/admin/teachers', color: 'from-green-500 to-emerald-500' },
-    { id: 'others', name: 'Others', icon: Settings, path: '/admin/others', color: 'from-purple-500 to-pink-500' },
-  ];
+  { id: 'teachers', name: 'Teachers', icon: BookOpen, path: '/admin/teachers', color: 'from-green-500 to-emerald-500' },
+  { id: 'students', name: 'Students', icon: Users, path: '/admin/students', color: 'from-blue-500 to-cyan-500' },
+  { id: 'others', name: 'Others', icon: Settings, path: '/admin/others', color: 'from-purple-500 to-pink-500' },
+];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
@@ -64,7 +64,7 @@ export default function AdminLayout({
                   />
                 </div>
                 <div className="text-center mt-2">
-                  <h1 className="text-white font-bold text-xl">SGS School</h1>
+                  <h1 className="text-white font-bold text-xl">SGS High School</h1>
                   <p className="text-white/40 text-[10px] uppercase tracking-wider">Admin Portal</p>
                 </div>
               </motion.div>
@@ -130,20 +130,14 @@ export default function AdminLayout({
                 </p>
               </div>
               <div className="flex items-center gap-4">
-                {/* SGS Logo in Header */}
-                <div className="w-12 h-12 relative rounded-full overflow-hidden border border-yellow-400/20">
-                  <Image
-                    src="/sgslogo.jpeg"
-                    alt="SGS School Logo"
-                    fill
-                    className="object-cover"
-                  />
+                <div className="w-12 h-12 relative rounded-xl overflow-hidden border border-yellow-400/20">
+                   <Image src="/sgslogo.jpeg" alt="SGS School Logo" fill className="object-cover" />
                 </div>
                 <div className="text-right">
-                  <p className="text-white text-sm font-medium">Admin</p>
-                  <p className="text-white/40 text-xs">SGS School</p>
+                  <p className="text-white text-sm font-bold">SWAIS</p>
+                  <p className="text-white/60 text-xs">SARASWATI</p>
                 </div>
-              </div>
+              </div> 
             </div>
           </div>
         </div>

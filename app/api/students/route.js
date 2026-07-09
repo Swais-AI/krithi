@@ -12,6 +12,16 @@ const pool = new Pool({
 
 export async function GET() {
   try {
+    // Get stats
+    const statsResult = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN record_status = 'Active' THEN 1 END) as active,
+        COUNT(CASE WHEN record_status = 'Inactive' THEN 1 END) as inactive
+      FROM sgs_student_master
+      WHERE record_status IN ('Active', 'Inactive')
+    `);
+    
     const result = await pool.query(`
       SELECT 
         student_id as id,
@@ -32,7 +42,11 @@ export async function GET() {
       WHERE record_status != 'Deleted'
       ORDER BY student_id
     `);
-    return NextResponse.json(result.rows);
+    
+    return NextResponse.json({
+      students: result.rows,
+      stats: statsResult.rows[0]
+    });
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -118,13 +132,22 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     
-    await pool.query(
-      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1 OR student_id = $1`,
+    if (!id) {
+      return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
+    }
+    
+    const result = await pool.query(
+      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1 OR student_id = $1 RETURNING *`,
       [id]
     );
+    
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+    }
     
     return NextResponse.json({ message: 'Student deleted successfully' });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+   

@@ -72,10 +72,17 @@ export default function OthersPage() {
     try {
       const response = await fetch('/api/notices');
       const data = await response.json();
-      setNotifications(data);
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setNotifications(data);
+      } else {
+        console.error('Expected array but got:', data);
+        setNotifications([]);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error fetching notices:', error);
+      setNotifications([]);
       setLoading(false);
     }
   };
@@ -142,15 +149,23 @@ export default function OthersPage() {
     }
   };
 
-  const handleAddEvent = () => {
-    const event: Event = {
-      id: `E${events.length + 1}`,
-      ...newEvent
-    };
-    setEvents([...events, event]);
-    setShowEventModal(false);
-    setNewEvent({ title: '', type: 'function', date: '', description: '', location: '' });
-    setEditingEvent(null);
+  const handleAddEvent = async () => {
+    try {
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEvent)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEvents([...events, data.event]);
+        setShowEventModal(false);
+        setNewEvent({ title: '', type: 'function', date: '', description: '', location: '' });
+        setEditingEvent(null);
+      }
+    } catch (error) {
+      console.error('Error adding event:', error);
+    }
   };
 
   const handleModifyEvent = (event: Event) => {
@@ -213,12 +228,12 @@ export default function OthersPage() {
     setNewNotification(prev => ({ ...prev, [fieldName]: transcript }));
   };
 
-  const filteredNotifications = notifications.filter(n =>
+  const filteredNotifications = Array.isArray(notifications) ? notifications.filter(n =>
     n.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     n.message?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) : [];
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = Array.isArray(notifications) ? notifications.filter(n => !n.is_read).length : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
@@ -472,7 +487,7 @@ export default function OthersPage() {
         )}
       </div>
 
-      {/* Add/Modify Notice Modal with AI Voice Input */}
+      {/* ===== ADD/MODIFY NOTICE MODAL WITH LABELS ===== */}
       <AnimatePresence>
         {showNotificationModal && (
           <motion.div
@@ -510,71 +525,25 @@ export default function OthersPage() {
               )}
 
               <div className="space-y-4">
-                <div className="relative">
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Notice Title *</label>
                   <input
                     type="text"
-                    placeholder="Notice Title *"
+                    placeholder="Enter notice title"
                     value={newNotification.title}
                     onChange={(e) => setNewNotification({...newNotification, title: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                    <button
-                      onClick={() => {
-                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                        if (!SpeechRecognition) {
-                          alert('Speech recognition not supported in this browser.');
-                          return;
-                        }
-                        const recognition = new SpeechRecognition();
-                        recognition.lang = 'en-US';
-                        recognition.onresult = (event) => {
-                          const transcript = event.results[0][0].transcript;
-                          handleVoiceInput('title', transcript);
-                        };
-                        recognition.start();
-                      }}
-                      className="text-purple-400 hover:text-purple-300 p-1 rounded"
-                      title="Voice input for title"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
-                <div className="relative">
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Notice Message *</label>
                   <textarea
-                    placeholder="Notice Message *"
+                    placeholder="Enter notice message"
                     value={newNotification.message}
                     onChange={(e) => setNewNotification({...newNotification, message: e.target.value})}
                     rows={4}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 resize-none pr-10"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 resize-none"
                   />
-                  <div className="absolute right-2 top-3">
-                    <button
-                      onClick={() => {
-                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                        if (!SpeechRecognition) {
-                          alert('Speech recognition not supported in this browser.');
-                          return;
-                        }
-                        const recognition = new SpeechRecognition();
-                        recognition.lang = 'en-US';
-                        recognition.onresult = (event) => {
-                          const transcript = event.results[0][0].transcript;
-                          handleVoiceInput('message', transcript);
-                        };
-                        recognition.start();
-                      }}
-                      className="text-purple-400 hover:text-purple-300 p-1 rounded"
-                      title="Voice input for message"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
                 
                 <div>
@@ -614,6 +583,127 @@ export default function OthersPage() {
                     setShowNotificationModal(false);
                     setEditingNotification(null);
                     setValidationError('');
+                  }}
+                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ===== ADD/MODIFY EVENT MODAL WITH LABELS ===== */}
+      <AnimatePresence>
+        {showEventModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-md border border-white/20"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">
+                  {editingEvent ? 'Modify Event' : 'Add New Event'}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowEventModal(false);
+                    setEditingEvent(null);
+                  }}
+                  className="text-white/40 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Event Title *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter event title"
+                    value={newEvent.title}
+                    onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-white/60 text-sm mb-2 block">Event Type:</label>
+                  <div className="flex gap-3">
+                    {[
+                      { id: 'tour', label: 'Tour', icon: Bus },
+                      { id: 'function', label: 'Function', icon: Music },
+                      { id: 'activity', label: 'Activity', icon: Trophy },
+                    ].map((option) => (
+                      <button
+                        key={option.id}
+                        onClick={() => setNewEvent({...newEvent, type: option.id as any})}
+                        className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                          newEvent.type === option.id
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
+                            : 'bg-white/10 text-white/60 hover:bg-white/20'
+                        }`}
+                      >
+                        <option.icon size={14} />
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={newEvent.date}
+                    onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Location (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Enter location"
+                    value={newEvent.location}
+                    onChange={(e) => setNewEvent({...newEvent, location: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Description</label>
+                  <textarea
+                    placeholder="Enter event description"
+                    value={newEvent.description}
+                    onChange={(e) => setNewEvent({...newEvent, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleAddEvent}
+                  className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} /> {editingEvent ? 'Update Event' : 'Add Event'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEventModal(false);
+                    setEditingEvent(null);
                   }}
                   className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
                 >

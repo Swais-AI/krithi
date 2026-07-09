@@ -71,7 +71,6 @@ export default function TeachersPage() {
   };
 
   const validateForm = () => {
-    // Validate Teacher ID prefix (T=Teacher, H=Headmaster)
     const teacherId = formData.teacher_id.trim();
     if (!teacherId) {
       setValidationError('Teacher ID is required');
@@ -217,7 +216,6 @@ export default function TeachersPage() {
     setIsModalOpen(true);
   };
 
-  // AI: Bulk Translate All Teacher Names
   const handleBulkTranslate = async (langCode: string) => {
     setIsTranslatingAll(true);
     setShowBulkTranslateDropdown(false);
@@ -231,7 +229,6 @@ export default function TeachersPage() {
     }
   };
 
-  // AI: Voice input handler for form fields
   const handleVoiceInput = (fieldName: string, transcript: string) => {
     setFormData((prev: any) => ({ ...prev, [fieldName]: transcript }));
   };
@@ -247,7 +244,6 @@ export default function TeachersPage() {
   const totalTeachers = teachers.length;
   const activeTeachers = teachers.filter((t: Teacher) => t.status === 'Active').length;
 
-  // Helper function to safely get form value
   const getFormValue = (key: string) => {
     const value = formData[key];
     if (typeof value === 'boolean') return '';
@@ -260,7 +256,7 @@ export default function TeachersPage() {
         <h1 className="text-3xl font-bold text-white mb-2">👨‍🏫 Teacher Management</h1>
         <p className="text-white/60 mb-8">Manage faculty members, assign subjects, and track performance</p>
 
-        {/* AI - Bulk Translation Dropdown */}
+        {/* Bulk Translation Dropdown */}
         <div className="flex items-center gap-3 mb-4">
           <span className="text-white/50 text-sm flex items-center gap-1">
             🌐 Translate All:
@@ -415,7 +411,7 @@ export default function TeachersPage() {
         </div>
       </div>
 
-      {/* Add/Modify Modal with AI Voice Input */}
+      {/* Add/Modify Teacher Modal with Labels */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -442,75 +438,127 @@ export default function TeachersPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { key: 'teacher_id', placeholder: 'Teacher ID * (T=Teacher, H=Headmaster)' },
-                  { key: 'name', placeholder: 'Teacher Name *' },
-                  { key: 'subject', placeholder: 'Subject' },
-                  { key: 'qualification', placeholder: 'Qualification' },
-                  { key: 'class_id', placeholder: 'Class ID' },
-                  { key: 'section_1', placeholder: 'Section 1' },
-                  { key: 'section_2', placeholder: 'Section 2' },
-                  { key: 'role', placeholder: 'Role (auto-detected from ID)' },
-                  { key: 'subjects', placeholder: 'Subjects (comma separated)' },
-                  { key: 'contact', placeholder: 'Contact Number' },
-                  { key: 'email', placeholder: 'Email' },
-                ].map((field) => (
-                  <div key={field.key} className="relative">
-                    <input
-                      type="text"
-                      placeholder={field.placeholder}
-                      value={getFormValue(field.key)}
-                      onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      <button
-                        onClick={() => {
-                          const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-                          if (!SpeechRecognition) {
-                            alert('Speech recognition not supported in this browser.');
-                            return;
-                          }
-                          const recognition = new SpeechRecognition();
-                          recognition.lang = 'en-US';
-                          recognition.onresult = (event: any) => {
-                            const transcript = event.results[0][0].transcript;
-                            handleVoiceInput(field.key, transcript);
-                          };
-                          recognition.start();
-                        }}
-                        className="text-purple-400 hover:text-purple-300 p-1 rounded"
-                        title={`Voice input for ${field.placeholder}`}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-2 mt-4">
-                <div className="flex items-center gap-2">
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Teacher ID * (T=Teacher, H=Headmaster)</label>
                   <input
-                    type="checkbox"
-                    checked={formData.is_class_teacher}
-                    onChange={(e) => setFormData((prev: any) => ({ ...prev, is_class_teacher: e.target.checked }))}
-                    className="w-4 h-4"
+                    type="text"
+                    placeholder="e.g., T001 or H001"
+                    value={getFormValue('teacher_id')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, teacher_id: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
-                  <label className="text-white">Is Class Teacher?</label>
                 </div>
-                <div className="flex items-center gap-4">
-                  <label className="text-white/80">Status:</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData((prev: any) => ({ ...prev, status: e.target.value }))}
-                    className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Teacher Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter teacher name"
+                    value={getFormValue('name')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Subject</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Mathematics"
+                    value={getFormValue('subject')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, subject: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Qualification</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., M.Sc, B.Ed"
+                    value={getFormValue('qualification')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, qualification: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Class ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 13 (optional)"
+                    value={getFormValue('class_id')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, class_id: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Section 1</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., A"
+                    value={getFormValue('section_1')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, section_1: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Section 2</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., B (optional)"
+                    value={getFormValue('section_2')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, section_2: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Subjects (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Math, Science"
+                    value={getFormValue('subjects')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, subjects: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Contact Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 9876543210"
+                    value={getFormValue('contact')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, contact: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="teacher@school.com"
+                    value={getFormValue('email')}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_class_teacher}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, is_class_teacher: e.target.checked }))}
+                      className="w-4 h-4"
+                    />
+                    <label className="text-white">Is Class Teacher?</label>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="text-white/70 text-sm">Status:</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, status: e.target.value }))}
+                      className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
