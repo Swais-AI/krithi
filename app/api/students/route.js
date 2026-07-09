@@ -12,41 +12,28 @@ const pool = new Pool({
 
 export async function GET() {
   try {
-    // Get stats
-    const statsResult = await pool.query(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN record_status = 'Active' THEN 1 END) as active,
-        COUNT(CASE WHEN record_status = 'Inactive' THEN 1 END) as inactive
-      FROM sgs_student_master
-      WHERE record_status IN ('Active', 'Inactive')
-    `);
-    
     const result = await pool.query(`
       SELECT 
-        student_id as id,
-        admission_no,
-        full_name as name,
-        class_name as class,
-        section,
-        roll_no,
-        parent1_name as parent_name,
-        parent1_phone as parent_phone,
-        parent1_email as parent_email,
-        student_phone as student_contact,
-        student_email,
-        guardian_name,
-        guardian_phone,
-        record_status as status
-      FROM sgs_student_master
-      WHERE record_status != 'Deleted'
-      ORDER BY student_id
+        sm.student_id as id,
+        sm.admission_no,
+        sm.full_name as name,
+        COALESCE(cm.class_name || '-' || cm.section_name, 'N/A') as class,
+        sm.section,
+        sm.roll_no,
+        sm.parent1_name as parent_name,
+        sm.parent1_phone as parent_phone,
+        sm.parent1_email as parent_email,
+        sm.student_phone as student_contact,
+        sm.student_email,
+        sm.guardian_name,
+        sm.guardian_phone,
+        sm.record_status as status
+      FROM sgs_student_master sm
+      LEFT JOIN sgs_class_master cm ON sm.class_id = cm.class_id
+      WHERE sm.record_status != 'Deleted'
+      ORDER BY sm.student_id
     `);
-    
-    return NextResponse.json({
-      students: result.rows,
-      stats: statsResult.rows[0]
-    });
+    return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -64,21 +51,32 @@ export async function POST(request) {
       status
     } = body;
     
-      if (!admission_no || !admission_no.match(/^S/)) {
-      return NextResponse.json(
-        { error: 'Admission Number must start with "S" (Student)' },
-        { status: 400 }
+    // Find or create class_id from class_name
+    let classResult = await pool.query(
+      `SELECT class_id FROM sgs_class_master WHERE class_name = $1 AND section_name = $2`,
+      [className, section]
+    );
+    
+    let class_id;
+    if (classResult.rows.length === 0) {
+      const newClass = await pool.query(
+        `INSERT INTO sgs_class_master (class_name, section_name, record_status) 
+         VALUES ($1, $2, 'Active') RETURNING class_id`,
+        [className, section]
       );
+      class_id = newClass.rows[0].class_id;
+    } else {
+      class_id = classResult.rows[0].class_id;
     }
     
     const result = await pool.query(
       `INSERT INTO sgs_student_master 
-       (admission_no, full_name, class_name, section, roll_no,
+       (admission_no, full_name, class_id, section, roll_no,
         parent1_name, parent1_phone, parent1_email,
         student_phone, student_email, guardian_name, guardian_phone,
         record_status) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      [admission_no, name, className, section, roll_no,
+      [admission_no, name, class_id, section, roll_no,
        parent_name, parent_phone, parent_email,
        student_contact, student_email, guardian_name, guardian_phone,
        status || 'Active']
@@ -105,15 +103,33 @@ export async function PUT(request) {
       status, id
     } = body;
     
+    // Find or create class_id
+    let classResult = await pool.query(
+      `SELECT class_id FROM sgs_class_master WHERE class_name = $1 AND section_name = $2`,
+      [className, section]
+    );
+    
+    let class_id;
+    if (classResult.rows.length === 0) {
+      const newClass = await pool.query(
+        `INSERT INTO sgs_class_master (class_name, section_name, record_status) 
+         VALUES ($1, $2, 'Active') RETURNING class_id`,
+        [className, section]
+      );
+      class_id = newClass.rows[0].class_id;
+    } else {
+      class_id = classResult.rows[0].class_id;
+    }
+    
     await pool.query(
       `UPDATE sgs_student_master 
-       SET full_name = $1, class_name = $2, section = $3, roll_no = $4,
+       SET full_name = $1, class_id = $2, section = $3, roll_no = $4,
            parent1_name = $5, parent1_phone = $6, parent1_email = $7,
            student_phone = $8, student_email = $9,
            guardian_name = $10, guardian_phone = $11,
            record_status = $12
        WHERE admission_no = $13 OR student_id = $14`,
-      [name, className, section, roll_no,
+      [name, class_id, section, roll_no,
        parent_name, parent_phone, parent_email,
        student_contact, student_email,
        guardian_name, guardian_phone,
@@ -132,22 +148,13 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     
-    if (!id) {
-      return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
-    }
-    
-    const result = await pool.query(
-      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1 OR student_id = $1 RETURNING *`,
+    await pool.query(
+      `UPDATE sgs_student_master SET record_status = 'Deleted' WHERE admission_no = $1 OR student_id = $1`,
       [id]
     );
-    
-    if (result.rowCount === 0) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
-    }
     
     return NextResponse.json({ message: 'Student deleted successfully' });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-   
