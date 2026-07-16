@@ -30,6 +30,7 @@ interface Student {
   student_email: string;
   guardian_name: string;
   guardian_phone: string;
+  guardian_email: string;
   status: 'Active' | 'Inactive';
 }
 
@@ -61,6 +62,7 @@ export default function StudentsPage() {
     student_email: '',
     guardian_name: '',
     guardian_phone: '',
+    guardian_email: '',
     status: 'Active'
   });
 
@@ -110,6 +112,10 @@ export default function StudentsPage() {
     }
     if (formData.student_email && !formData.student_email.includes('@')) {
       setValidationError('Please enter a valid student email address');
+      return false;
+    }
+    if (formData.guardian_email && !formData.guardian_email.includes('@')) {
+      setValidationError('Please enter a valid guardian email address');
       return false;
     }
     setValidationError('');
@@ -204,6 +210,7 @@ export default function StudentsPage() {
       student_email: '',
       guardian_name: '',
       guardian_phone: '',
+      guardian_email: '',
       status: 'Active'
     });
     setSelectedStudent(null);
@@ -233,6 +240,7 @@ export default function StudentsPage() {
         student_email: student.student_email || '',
         guardian_name: student.guardian_name || '',
         guardian_phone: student.guardian_phone || '',
+        guardian_email: student.guardian_email || '',
         status: student.status || 'Active'
       });
     }
@@ -389,15 +397,18 @@ export default function StudentsPage() {
                   <th className="px-4 py-3 text-left text-white">Parent 2 Name</th>
                   <th className="px-4 py-3 text-left text-white">Parent 2 Phone</th>
                   <th className="px-4 py-3 text-left text-white">Parent 2 Email</th>
+                  <th className="px-4 py-3 text-left text-white">Guardian Name</th>
+                  <th className="px-4 py-3 text-left text-white">Guardian Phone</th>
+                  <th className="px-4 py-3 text-left text-white">Guardian Email</th>
                   <th className="px-4 py-3 text-left text-white">Status</th>
                   <th className="px-4 py-3 text-left text-white">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={13} className="text-center py-8 text-white/60">Loading...</td></tr>
+                  <tr><td colSpan={16} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredStudents.length === 0 ? (
-                  <tr><td colSpan={13} className="text-center py-8 text-white/60">No students found</td></tr>
+                  <tr><td colSpan={16} className="text-center py-8 text-white/60">No students found</td></tr>
                 ) : (
                   filteredStudents.map((student, idx) => {
                     const displayName = translations[student.id] || student.name;
@@ -425,6 +436,9 @@ export default function StudentsPage() {
                         <td className="px-4 py-3 text-white/80">{student.parent2_name || '-'}</td>
                         <td className="px-4 py-3 text-white/80">{student.parent2_phone || '-'}</td>
                         <td className="px-4 py-3 text-white/80">{student.parent2_email || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.guardian_name || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.guardian_phone || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.guardian_email || '-'}</td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => handleToggleStatus(student)}
@@ -621,6 +635,16 @@ export default function StudentsPage() {
                     placeholder="e.g., 9876543213"
                     value={formData.guardian_phone}
                     onChange={(e) => setFormData({...formData, guardian_phone: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Guardian Email</label>
+                  <input
+                    type="email"
+                    placeholder="guardian@email.com"
+                    value={formData.guardian_email}
+                    onChange={(e) => setFormData({...formData, guardian_email: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>

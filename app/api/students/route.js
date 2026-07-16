@@ -30,6 +30,7 @@ export async function GET() {
         sm.student_email,
         sm.guardian_name,
         sm.guardian_phone,
+        sm.guardian_email,
         sm.record_status as status
       FROM sgs_student_master sm
       LEFT JOIN sgs_class_master cm ON sm.class_id = cm.class_id
@@ -51,11 +52,10 @@ export async function POST(request) {
       parent1_name, parent1_phone, parent1_email,
       parent2_name, parent2_phone, parent2_email,
       student_contact, student_email,
-      guardian_name, guardian_phone,
+      guardian_name, guardian_phone, guardian_email,
       status
     } = body;
     
-    // Find or create class_id
     let classResult = await pool.query(
       `SELECT class_id FROM sgs_class_master WHERE class_name = $1 AND section_name = $2`,
       [className, section]
@@ -78,13 +78,13 @@ export async function POST(request) {
        (admission_no, full_name, class_id, section, roll_no,
         parent1_name, parent1_phone, parent1_email,
         parent2_name, parent2_phone, parent2_email,
-        student_phone, student_email, guardian_name, guardian_phone,
+        student_phone, student_email, guardian_name, guardian_phone, guardian_email,
         record_status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
       [admission_no, name, class_id, section, roll_no,
        parent1_name, parent1_phone, parent1_email,
        parent2_name, parent2_phone, parent2_email,
-       student_contact, student_email, guardian_name, guardian_phone,
+       student_contact, student_email, guardian_name, guardian_phone, guardian_email,
        status || 'Active']
     );
     
@@ -106,11 +106,10 @@ export async function PUT(request) {
       parent1_name, parent1_phone, parent1_email,
       parent2_name, parent2_phone, parent2_email,
       student_contact, student_email,
-      guardian_name, guardian_phone,
+      guardian_name, guardian_phone, guardian_email,
       status, id
     } = body;
     
-    // Find or create class_id
     let classResult = await pool.query(
       `SELECT class_id FROM sgs_class_master WHERE class_name = $1 AND section_name = $2`,
       [className, section]
@@ -134,14 +133,14 @@ export async function PUT(request) {
            parent1_name = $5, parent1_phone = $6, parent1_email = $7,
            parent2_name = $8, parent2_phone = $9, parent2_email = $10,
            student_phone = $11, student_email = $12,
-           guardian_name = $13, guardian_phone = $14,
-           record_status = $15
-       WHERE admission_no = $16 OR student_id = $17`,
+           guardian_name = $13, guardian_phone = $14, guardian_email = $15,
+           record_status = $16
+       WHERE admission_no = $17 OR student_id = $18`,
       [name, class_id, section, roll_no,
        parent1_name, parent1_phone, parent1_email,
        parent2_name, parent2_phone, parent2_email,
        student_contact, student_email,
-       guardian_name, guardian_phone,
+       guardian_name, guardian_phone, guardian_email,
        status, admission_no, id]
     );
     
