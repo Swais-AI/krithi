@@ -20,9 +20,12 @@ interface Student {
   class: string;
   section: string;
   roll_no: string;
-  parent_name: string;
-  parent_phone: string;
-  parent_email: string;
+  parent1_name: string;
+  parent1_phone: string;
+  parent1_email: string;
+  parent2_name: string;
+  parent2_phone: string;
+  parent2_email: string;
   student_contact: string;
   student_email: string;
   guardian_name: string;
@@ -48,9 +51,12 @@ export default function StudentsPage() {
     class: '',
     section: '',
     roll_no: '',
-    parent_name: '',
-    parent_phone: '',
-    parent_email: '',
+    parent1_name: '',
+    parent1_phone: '',
+    parent1_email: '',
+    parent2_name: '',
+    parent2_phone: '',
+    parent2_email: '',
     student_contact: '',
     student_email: '',
     guardian_name: '',
@@ -94,8 +100,12 @@ export default function StudentsPage() {
       setValidationError('Student Name is required');
       return false;
     }
-    if (formData.parent_email && !formData.parent_email.includes('@')) {
-      setValidationError('Please enter a valid parent email address');
+    if (formData.parent1_email && !formData.parent1_email.includes('@')) {
+      setValidationError('Please enter a valid parent1 email address');
+      return false;
+    }
+    if (formData.parent2_email && !formData.parent2_email.includes('@')) {
+      setValidationError('Please enter a valid parent2 email address');
       return false;
     }
     if (formData.student_email && !formData.student_email.includes('@')) {
@@ -184,9 +194,12 @@ export default function StudentsPage() {
       class: '',
       section: '',
       roll_no: '',
-      parent_name: '',
-      parent_phone: '',
-      parent_email: '',
+      parent1_name: '',
+      parent1_phone: '',
+      parent1_email: '',
+      parent2_name: '',
+      parent2_phone: '',
+      parent2_email: '',
       student_contact: '',
       student_email: '',
       guardian_name: '',
@@ -210,9 +223,12 @@ export default function StudentsPage() {
         class: student.class || '',
         section: student.section || '',
         roll_no: student.roll_no || '',
-        parent_name: student.parent_name || '',
-        parent_phone: student.parent_phone || '',
-        parent_email: student.parent_email || '',
+        parent1_name: student.parent1_name || '',
+        parent1_phone: student.parent1_phone || '',
+        parent1_email: student.parent1_email || '',
+        parent2_name: student.parent2_name || '',
+        parent2_phone: student.parent2_phone || '',
+        parent2_email: student.parent2_email || '',
         student_contact: student.student_contact || '',
         student_email: student.student_email || '',
         guardian_name: student.guardian_name || '',
@@ -367,18 +383,21 @@ export default function StudentsPage() {
                   <th className="px-4 py-3 text-left text-white">Class</th>
                   <th className="px-4 py-3 text-left text-white">Section</th>
                   <th className="px-4 py-3 text-left text-white">Roll No</th>
-                  <th className="px-4 py-3 text-left text-white">Parent Name</th>
-                  <th className="px-4 py-3 text-left text-white">Parent Contact</th>
-                  <th className="px-4 py-3 text-left text-white">Student Contact</th>
+                  <th className="px-4 py-3 text-left text-white">Parent 1 Name</th>
+                  <th className="px-4 py-3 text-left text-white">Parent 1 Phone</th>
+                  <th className="px-4 py-3 text-left text-white">Parent 1 Email</th>
+                  <th className="px-4 py-3 text-left text-white">Parent 2 Name</th>
+                  <th className="px-4 py-3 text-left text-white">Parent 2 Phone</th>
+                  <th className="px-4 py-3 text-left text-white">Parent 2 Email</th>
                   <th className="px-4 py-3 text-left text-white">Status</th>
                   <th className="px-4 py-3 text-left text-white">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} className="text-center py-8 text-white/60">Loading...</td></tr>
+                  <tr><td colSpan={13} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredStudents.length === 0 ? (
-                  <tr><td colSpan={10} className="text-center py-8 text-white/60">No students found</td></tr>
+                  <tr><td colSpan={13} className="text-center py-8 text-white/60">No students found</td></tr>
                 ) : (
                   filteredStudents.map((student, idx) => {
                     const displayName = translations[student.id] || student.name;
@@ -400,9 +419,12 @@ export default function StudentsPage() {
                         <td className="px-4 py-3 text-white/80">{student.class || '-'}</td>
                         <td className="px-4 py-3 text-white/80">{student.section || '-'}</td>
                         <td className="px-4 py-3 text-white/80">{student.roll_no || '-'}</td>
-                        <td className="px-4 py-3 text-white/80">{student.parent_name || '-'}</td>
-                        <td className="px-4 py-3 text-white/80">{student.parent_phone || '-'}</td>
-                        <td className="px-4 py-3 text-white/80">{student.student_contact || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent1_name || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent1_phone || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent1_email || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent2_name || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent2_phone || '-'}</td>
+                        <td className="px-4 py-3 text-white/80">{student.parent2_email || '-'}</td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => handleToggleStatus(student)}
@@ -503,32 +525,62 @@ export default function StudentsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent Name</label>
+                  <label className="text-white/70 text-sm block mb-1">Parent 1 Name</label>
                   <input
                     type="text"
-                    placeholder="Enter parent name"
-                    value={formData.parent_name}
-                    onChange={(e) => setFormData({...formData, parent_name: e.target.value})}
+                    placeholder="Enter parent 1 name"
+                    value={formData.parent1_name}
+                    onChange={(e) => setFormData({...formData, parent1_name: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent Phone</label>
+                  <label className="text-white/70 text-sm block mb-1">Parent 1 Phone</label>
                   <input
                     type="tel"
                     placeholder="e.g., 9876543210"
-                    value={formData.parent_phone}
-                    onChange={(e) => setFormData({...formData, parent_phone: e.target.value})}
+                    value={formData.parent1_phone}
+                    onChange={(e) => setFormData({...formData, parent1_phone: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent Email</label>
+                  <label className="text-white/70 text-sm block mb-1">Parent 1 Email</label>
                   <input
                     type="email"
-                    placeholder="parent@email.com"
-                    value={formData.parent_email}
-                    onChange={(e) => setFormData({...formData, parent_email: e.target.value})}
+                    placeholder="parent1@email.com"
+                    value={formData.parent1_email}
+                    onChange={(e) => setFormData({...formData, parent1_email: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Parent 2 Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter parent 2 name"
+                    value={formData.parent2_name}
+                    onChange={(e) => setFormData({...formData, parent2_name: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Parent 2 Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g., 9876543211"
+                    value={formData.parent2_phone}
+                    onChange={(e) => setFormData({...formData, parent2_phone: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm block mb-1">Parent 2 Email</label>
+                  <input
+                    type="email"
+                    placeholder="parent2@email.com"
+                    value={formData.parent2_email}
+                    onChange={(e) => setFormData({...formData, parent2_email: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
@@ -536,7 +588,7 @@ export default function StudentsPage() {
                   <label className="text-white/70 text-sm block mb-1">Student Contact</label>
                   <input
                     type="tel"
-                    placeholder="e.g., 9876543211"
+                    placeholder="e.g., 9876543212"
                     value={formData.student_contact}
                     onChange={(e) => setFormData({...formData, student_contact: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
@@ -566,7 +618,7 @@ export default function StudentsPage() {
                   <label className="text-white/70 text-sm block mb-1">Guardian Phone</label>
                   <input
                     type="tel"
-                    placeholder="e.g., 9876543212"
+                    placeholder="e.g., 9876543213"
                     value={formData.guardian_phone}
                     onChange={(e) => setFormData({...formData, guardian_phone: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
