@@ -20,9 +20,12 @@ export async function GET() {
         COALESCE(cm.class_name || '-' || cm.section_name, 'N/A') as class,
         sm.section,
         sm.roll_no,
-        sm.parent1_name as parent_name,
-        sm.parent1_phone as parent_phone,
-        sm.parent1_email as parent_email,
+        sm.parent1_name,
+        sm.parent1_phone,
+        sm.parent1_email,
+        sm.parent2_name,
+        sm.parent2_phone,
+        sm.parent2_email,
         sm.student_phone as student_contact,
         sm.student_email,
         sm.guardian_name,
@@ -45,13 +48,14 @@ export async function POST(request) {
     const body = await request.json();
     const { 
       admission_no, name, class: className, section, roll_no,
-      parent_name, parent_phone, parent_email,
+      parent1_name, parent1_phone, parent1_email,
+      parent2_name, parent2_phone, parent2_email,
       student_contact, student_email,
       guardian_name, guardian_phone,
       status
     } = body;
     
-    // Find or create class_id from class_name
+    // Find or create class_id
     let classResult = await pool.query(
       `SELECT class_id FROM sgs_class_master WHERE class_name = $1 AND section_name = $2`,
       [className, section]
@@ -73,11 +77,13 @@ export async function POST(request) {
       `INSERT INTO sgs_student_master 
        (admission_no, full_name, class_id, section, roll_no,
         parent1_name, parent1_phone, parent1_email,
+        parent2_name, parent2_phone, parent2_email,
         student_phone, student_email, guardian_name, guardian_phone,
         record_status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [admission_no, name, class_id, section, roll_no,
-       parent_name, parent_phone, parent_email,
+       parent1_name, parent1_phone, parent1_email,
+       parent2_name, parent2_phone, parent2_email,
        student_contact, student_email, guardian_name, guardian_phone,
        status || 'Active']
     );
@@ -97,7 +103,8 @@ export async function PUT(request) {
     const body = await request.json();
     const { 
       admission_no, name, class: className, section, roll_no,
-      parent_name, parent_phone, parent_email,
+      parent1_name, parent1_phone, parent1_email,
+      parent2_name, parent2_phone, parent2_email,
       student_contact, student_email,
       guardian_name, guardian_phone,
       status, id
@@ -125,12 +132,14 @@ export async function PUT(request) {
       `UPDATE sgs_student_master 
        SET full_name = $1, class_id = $2, section = $3, roll_no = $4,
            parent1_name = $5, parent1_phone = $6, parent1_email = $7,
-           student_phone = $8, student_email = $9,
-           guardian_name = $10, guardian_phone = $11,
-           record_status = $12
-       WHERE admission_no = $13 OR student_id = $14`,
+           parent2_name = $8, parent2_phone = $9, parent2_email = $10,
+           student_phone = $11, student_email = $12,
+           guardian_name = $13, guardian_phone = $14,
+           record_status = $15
+       WHERE admission_no = $16 OR student_id = $17`,
       [name, class_id, section, roll_no,
-       parent_name, parent_phone, parent_email,
+       parent1_name, parent1_phone, parent1_email,
+       parent2_name, parent2_phone, parent2_email,
        student_contact, student_email,
        guardian_name, guardian_phone,
        status, admission_no, id]
