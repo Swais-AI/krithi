@@ -71,23 +71,33 @@ export default function TeachersPage() {
   };
 
   const validateForm = () => {
+    // Check Teacher ID (Mandatory)
     const teacherId = formData.teacher_id.trim();
     if (!teacherId) {
-      setValidationError('Teacher ID is required');
+      setValidationError('Please fill in the Teacher ID');
       return false;
     }
     if (!teacherId.match(/^[TH]/)) {
       setValidationError('Teacher ID must start with "T" (Teacher) or "H" (Headmaster)');
       return false;
     }
+    
+    // Check Teacher Name (Mandatory)
     if (!formData.name.trim()) {
-      setValidationError('Teacher Name is required');
+      setValidationError('Please fill in the Teacher Name');
       return false;
     }
-    if (formData.email && !formData.email.includes('@')) {
+    
+    // Check Email (Mandatory)
+    if (!formData.email.trim()) {
+      setValidationError('Please fill in the Email');
+      return false;
+    }
+    if (!formData.email.includes('@')) {
       setValidationError('Please enter a valid email address');
       return false;
     }
+    
     setValidationError('');
     return true;
   };
@@ -411,7 +421,7 @@ export default function TeachersPage() {
         </div>
       </div>
 
-      {/* Add/Modify Teacher Modal with Labels */}
+      {/* Add/Modify Teacher Modal with Mandatory Fields */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -438,8 +448,9 @@ export default function TeachersPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Mandatory: Teacher ID */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Teacher ID * (T=Teacher, H=Headmaster)</label>
+                  <label className="text-white/70 text-sm block mb-1">Teacher ID * <span className="text-red-400">(T=Teacher, H=Headmaster)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., T001 or H001"
@@ -448,6 +459,7 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Mandatory: Teacher Name */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Teacher Name *</label>
                   <input
@@ -458,8 +470,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Subject */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Subject</label>
+                  <label className="text-white/70 text-sm block mb-1">Subject <span className="text-white/40">(optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., Mathematics"
@@ -468,8 +481,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Qualification */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Qualification</label>
+                  <label className="text-white/70 text-sm block mb-1">Qualification <span className="text-white/40">(optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., M.Sc, B.Ed"
@@ -478,8 +492,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Class ID */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Class ID</label>
+                  <label className="text-white/70 text-sm block mb-1">Class ID <span className="text-white/40">(optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., 13 (optional)"
@@ -488,8 +503,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Section 1 */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Section 1</label>
+                  <label className="text-white/70 text-sm block mb-1">Section 1 <span className="text-white/40">(optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., A"
@@ -498,8 +514,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Section 2 */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Section 2</label>
+                  <label className="text-white/70 text-sm block mb-1">Section 2 <span className="text-white/40">(optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., B (optional)"
@@ -508,8 +525,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Subjects (comma separated) */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Subjects (comma separated)</label>
+                  <label className="text-white/70 text-sm block mb-1">Subjects <span className="text-white/40">(comma separated, optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., Math, Science"
@@ -518,8 +536,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Optional: Contact Number */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Contact Number</label>
+                  <label className="text-white/70 text-sm block mb-1">Contact Number <span className="text-white/40">(optional)</span></label>
                   <input
                     type="text"
                     placeholder="e.g., 9876543210"
@@ -528,8 +547,9 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {/* Mandatory: Email */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Email</label>
+                  <label className="text-white/70 text-sm block mb-1">Email *</label>
                   <input
                     type="email"
                     placeholder="teacher@school.com"
