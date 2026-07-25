@@ -11,6 +11,7 @@ import TranslationDropdown from '../../components/TranslationDropdown';
 import TextToSpeechButton from '../../components/TextToSpeechButton';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import { bulkTranslate, supportedLanguages } from '../../utils/aiHelpers';
+import StudentFormWizard from '../../../components/StudentFormWizard';
 
 interface Student {
   id: string;
@@ -65,6 +66,9 @@ export default function StudentsPage() {
     guardian_email: '',
     status: 'Active'
   });
+
+  // State for wizard
+  const [editingStudent, setEditingStudent] = useState(null);
 
   useEffect(() => {
     fetchStudents();
@@ -222,8 +226,10 @@ export default function StudentsPage() {
     setValidationError('');
     if (type === 'add') {
       resetForm();
+      setEditingStudent(null);
     } else if (type === 'modify' && student) {
       setSelectedStudent(student);
+      setEditingStudent(student);
       setFormData({
         admission_no: student.admission_no || student.student_id || '',
         name: student.name || '',
@@ -262,6 +268,17 @@ export default function StudentsPage() {
 
   const handleVoiceInput = (fieldName: string, transcript: string) => {
     setFormData(prev => ({ ...prev, [fieldName]: transcript }));
+  };
+
+  // Wizard handlers
+  const handleWizardSuccess = () => {
+    fetchStudents();
+  };
+
+  const handleWizardClose = () => {
+    setIsModalOpen(false);
+    setEditingStudent(null);
+    resetForm();
   };
 
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
@@ -324,6 +341,7 @@ export default function StudentsPage() {
           </div>
         </div>
 
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-6">
             <p className="text-white/80 text-sm">Total Students</p>
@@ -342,6 +360,7 @@ export default function StudentsPage() {
           </div>
         </div>
 
+        {/* Buttons */}
         <div className="flex flex-wrap gap-4 mb-6">
           <button onClick={() => openModal('add')} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
             <Plus size={18} /> Add Student
@@ -356,6 +375,7 @@ export default function StudentsPage() {
           </button>
         </div>
 
+        {/* Search */}
         <div className="flex flex-wrap gap-4 mb-6">
           <div className="flex-1 min-w-[200px] relative">
             <input
@@ -381,6 +401,7 @@ export default function StudentsPage() {
           </select>
         </div>
 
+        {/* Table */}
         <div className="bg-white/5 rounded-2xl overflow-hidden border border-white/10">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -461,225 +482,14 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* Add/Modify Student Modal with Labels */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">{modalType === 'add' ? 'Add New Student' : 'Modify Student'}</h2>
-                <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-white/40 hover:text-white">✕</button>
-              </div>
-
-              {validationError && (
-                <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-3 text-red-400 text-sm text-center mb-4">
-                  {validationError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Admission Number * (S=Student)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., S001"
-                    value={formData.admission_no}
-                    onChange={(e) => setFormData({...formData, admission_no: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Student Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter student name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Class</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 10"
-                    value={formData.class}
-                    onChange={(e) => setFormData({...formData, class: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Section</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., A"
-                    value={formData.section}
-                    onChange={(e) => setFormData({...formData, section: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Roll Number</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 01"
-                    value={formData.roll_no}
-                    onChange={(e) => setFormData({...formData, roll_no: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent 1 Name</label>
-                  <input
-                    type="text"
-                    placeholder="Enter parent 1 name"
-                    value={formData.parent1_name}
-                    onChange={(e) => setFormData({...formData, parent1_name: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent 1 Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="e.g., 9876543210"
-                    value={formData.parent1_phone}
-                    onChange={(e) => setFormData({...formData, parent1_phone: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent 1 Email</label>
-                  <input
-                    type="email"
-                    placeholder="parent1@email.com"
-                    value={formData.parent1_email}
-                    onChange={(e) => setFormData({...formData, parent1_email: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent 2 Name</label>
-                  <input
-                    type="text"
-                    placeholder="Enter parent 2 name"
-                    value={formData.parent2_name}
-                    onChange={(e) => setFormData({...formData, parent2_name: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent 2 Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="e.g., 9876543211"
-                    value={formData.parent2_phone}
-                    onChange={(e) => setFormData({...formData, parent2_phone: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Parent 2 Email</label>
-                  <input
-                    type="email"
-                    placeholder="parent2@email.com"
-                    value={formData.parent2_email}
-                    onChange={(e) => setFormData({...formData, parent2_email: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Student Contact</label>
-                  <input
-                    type="tel"
-                    placeholder="e.g., 9876543212"
-                    value={formData.student_contact}
-                    onChange={(e) => setFormData({...formData, student_contact: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Student Email</label>
-                  <input
-                    type="email"
-                    placeholder="student@email.com"
-                    value={formData.student_email}
-                    onChange={(e) => setFormData({...formData, student_email: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Guardian Name</label>
-                  <input
-                    type="text"
-                    placeholder="Enter guardian name"
-                    value={formData.guardian_name}
-                    onChange={(e) => setFormData({...formData, guardian_name: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Guardian Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="e.g., 9876543213"
-                    value={formData.guardian_phone}
-                    onChange={(e) => setFormData({...formData, guardian_phone: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm block mb-1">Guardian Email</label>
-                  <input
-                    type="email"
-                    placeholder="guardian@email.com"
-                    value={formData.guardian_email}
-                    onChange={(e) => setFormData({...formData, guardian_email: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 mt-4">
-                <label className="text-white/70 text-sm">Status:</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={modalType === 'add' ? handleAdd : handleModify}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
-                >
-                  {modalType === 'add' ? 'Add Student' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={() => { setIsModalOpen(false); resetForm(); }}
-                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* 3-Step Wizard Modal - Replaces the old modal */}
+      <StudentFormWizard
+        isOpen={isModalOpen}
+        onClose={handleWizardClose}
+        onSuccess={handleWizardSuccess}
+        editData={editingStudent}
+        theme="dark"
+      />
     </div>
   );
 }
