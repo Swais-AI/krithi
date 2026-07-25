@@ -59,7 +59,6 @@ export default function StudentsPage() {
       console.log('API Response:', data);
       
       if (Array.isArray(data)) {
-        // Map the data to match the expected format
         const mappedStudents = data.map(s => ({
           id: s.admission_no || s.id,
           student_id: s.admission_no || s.student_id,
@@ -266,7 +265,7 @@ export default function StudentsPage() {
     setValidationError('');
   };
 
-  const openModal = (type, student) => {
+  const openModal = (type, student = null) => {
     setModalType(type);
     setValidationError('');
     if (type === 'add') {
@@ -335,10 +334,6 @@ export default function StudentsPage() {
     active: Array.isArray(students) ? students.filter(s => s.status === 'Active').length : 0,
     inactive: Array.isArray(students) ? students.filter(s => s.status === 'Inactive').length : 0,
   };
-
-  console.log('Students in state:', students);
-  console.log('Filtered students:', filteredStudents);
-  console.log('Stats:', stats);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
