@@ -12,6 +12,8 @@ const pool = new Pool({
 
 export async function GET() {
   try {
+    console.log('Fetching students from database...');
+    
     const result = await pool.query(`
       SELECT 
         admission_no,
@@ -32,9 +34,11 @@ export async function GET() {
         guardian_email,
         record_status
       FROM sgs_student_master
-      WHERE record_status = 'Active'
+      WHERE record_status = 'Active' OR record_status IS NULL
       ORDER BY admission_no
     `);
+    
+    console.log(`Found ${result.rows.length} students`);
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Database error:', error);
@@ -66,7 +70,6 @@ export async function POST(request) {
       guardian_email
     } = body;
 
-    // Validate required fields
     if (!admission_no) {
       return NextResponse.json(
         { error: 'Student ID is required' },
@@ -95,7 +98,6 @@ export async function POST(request) {
       );
     }
 
-    // Validate Student ID prefix
     if (!admission_no.match(/^S/)) {
       return NextResponse.json(
         { error: 'Student ID must start with "S"' },
@@ -103,7 +105,6 @@ export async function POST(request) {
       );
     }
 
-    // Check for duplicate admission number
     const checkDuplicate = await pool.query(
       'SELECT admission_no FROM sgs_student_master WHERE admission_no = $1',
       [admission_no]
@@ -116,10 +117,12 @@ export async function POST(request) {
       );
     }
 
-    // Handle class_id - try to convert to integer, but store as text if it fails
-    let classIdValue = class_id;
-    if (class_id && !isNaN(class_id)) {
-      classIdValue = parseInt(class_id);
+    let classIdValue = null;
+    if (class_id && class_id !== 'null' && class_id !== '') {
+      const parsedId = parseInt(class_id);
+      if (!isNaN(parsedId)) {
+        classIdValue = parsedId;
+      }
     }
 
     const result = await pool.query(
@@ -158,13 +161,6 @@ export async function POST(request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error adding student:', error);
-    // Return a more helpful error message
-    if (error.message.includes('foreign key constraint')) {
-      return NextResponse.json({
-        error: 'The Class ID you entered does not exist in the system. Please enter a valid Class ID (e.g., 1, 2, 3, etc.)',
-        details: error.message
-      }, { status: 400 });
-    }
     return NextResponse.json({
       error: error.message,
       details: error.stack
@@ -203,7 +199,6 @@ export async function PUT(request) {
       );
     }
 
-    // Check if student exists
     const checkExists = await pool.query(
       'SELECT admission_no FROM sgs_student_master WHERE admission_no = $1',
       [admission_no]
@@ -216,10 +211,12 @@ export async function PUT(request) {
       );
     }
 
-    // Handle class_id
-    let classIdValue = class_id;
-    if (class_id && !isNaN(class_id)) {
-      classIdValue = parseInt(class_id);
+    let classIdValue = null;
+    if (class_id && class_id !== 'null' && class_id !== '') {
+      const parsedId = parseInt(class_id);
+      if (!isNaN(parsedId)) {
+        classIdValue = parsedId;
+      }
     }
 
     await pool.query(
@@ -285,7 +282,6 @@ export async function DELETE(request) {
       );
     }
 
-    // Check if student exists
     const checkExists = await pool.query(
       'SELECT admission_no FROM sgs_student_master WHERE admission_no = $1',
       [id]

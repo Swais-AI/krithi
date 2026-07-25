@@ -13,38 +13,16 @@ import SpeechToTextButton from '../../components/SpeechToTextButton';
 import { bulkTranslate, supportedLanguages } from '../../utils/aiHelpers';
 import StudentFormWizard from '../../../components/StudentFormWizard';
 
-interface Student {
-  id: string;
-  student_id: string;
-  admission_no: string;
-  name: string;
-  class: string;
-  section: string;
-  roll_no: string;
-  parent1_name: string;
-  parent1_phone: string;
-  parent1_email: string;
-  parent2_name: string;
-  parent2_phone: string;
-  parent2_email: string;
-  student_contact: string;
-  student_email: string;
-  guardian_name: string;
-  guardian_phone: string;
-  guardian_email: string;
-  status: 'Active' | 'Inactive';
-}
-
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState<'name' | 'id' | 'class' | 'section'>('name');
+  const [searchType, setSearchType] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'add' | 'modify'>('add');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [modalType, setModalType] = useState('add');
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [validationError, setValidationError] = useState('');
-  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translations, setTranslations] = useState({});
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
   const [showBulkTranslateDropdown, setShowBulkTranslateDropdown] = useState(false);
   const [formData, setFormData] = useState({
@@ -67,7 +45,6 @@ export default function StudentsPage() {
     status: 'Active'
   });
 
-  // State for wizard
   const [editingStudent, setEditingStudent] = useState(null);
 
   useEffect(() => {
@@ -76,18 +53,48 @@ export default function StudentsPage() {
 
   const fetchStudents = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/students');
       const data = await response.json();
+      console.log('API Response:', data);
+      
       if (Array.isArray(data)) {
-        setStudents(data);
+        // Map the data to match the expected format
+        const mappedStudents = data.map(s => ({
+          id: s.admission_no || s.id,
+          student_id: s.admission_no || s.student_id,
+          admission_no: s.admission_no,
+          name: s.full_name || s.name,
+          full_name: s.full_name || s.name,
+          class: s.class || s.class_id || '',
+          class_id: s.class_id,
+          section: s.section || '',
+          roll_no: s.roll_no || '',
+          parent1_name: s.parent1_name || '',
+          parent1_phone: s.parent1_phone || '',
+          parent1_email: s.parent1_email || '',
+          parent2_name: s.parent2_name || '',
+          parent2_phone: s.parent2_phone || '',
+          parent2_email: s.parent2_email || '',
+          student_contact: s.student_phone || s.student_contact || '',
+          student_phone: s.student_phone || '',
+          student_email: s.student_email || '',
+          guardian_name: s.guardian_name || '',
+          guardian_phone: s.guardian_phone || '',
+          guardian_email: s.guardian_email || '',
+          status: s.record_status === 'Active' ? 'Active' : (s.status || 'Active'),
+          record_status: s.record_status || 'Active'
+        }));
+        console.log('Mapped Students:', mappedStudents);
+        setStudents(mappedStudents);
       } else {
         console.error('Expected array but got:', data);
         setStudents([]);
       }
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching students:', error);
       setStudents([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -132,7 +139,24 @@ export default function StudentsPage() {
       const response = await fetch('/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          admission_no: formData.admission_no,
+          full_name: formData.name,
+          class_id: formData.class,
+          section: formData.section,
+          roll_no: formData.roll_no,
+          parent1_name: formData.parent1_name,
+          parent1_phone: formData.parent1_phone,
+          parent1_email: formData.parent1_email,
+          parent2_name: formData.parent2_name,
+          parent2_phone: formData.parent2_phone,
+          parent2_email: formData.parent2_email,
+          student_phone: formData.student_contact,
+          student_email: formData.student_email,
+          guardian_name: formData.guardian_name,
+          guardian_phone: formData.guardian_phone,
+          guardian_email: formData.guardian_email
+        })
       });
       if (response.ok) {
         fetchStudents();
@@ -155,7 +179,25 @@ export default function StudentsPage() {
         const response = await fetch('/api/students', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, id: selectedStudent.id })
+          body: JSON.stringify({
+            admission_no: formData.admission_no,
+            full_name: formData.name,
+            class_id: formData.class,
+            section: formData.section,
+            roll_no: formData.roll_no,
+            parent1_name: formData.parent1_name,
+            parent1_phone: formData.parent1_phone,
+            parent1_email: formData.parent1_email,
+            parent2_name: formData.parent2_name,
+            parent2_phone: formData.parent2_phone,
+            parent2_email: formData.parent2_email,
+            student_phone: formData.student_contact,
+            student_email: formData.student_email,
+            guardian_name: formData.guardian_name,
+            guardian_phone: formData.guardian_phone,
+            guardian_email: formData.guardian_email,
+            id: selectedStudent.id
+          })
         });
         if (response.ok) {
           fetchStudents();
@@ -172,7 +214,7 @@ export default function StudentsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this student?')) {
       try {
         await fetch(`/api/students?id=${id}`, { method: 'DELETE' });
@@ -183,13 +225,16 @@ export default function StudentsPage() {
     }
   };
 
-  const handleToggleStatus = async (student: Student) => {
+  const handleToggleStatus = async (student) => {
     const newStatus = student.status === 'Active' ? 'Inactive' : 'Active';
     try {
       await fetch('/api/students', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...student, status: newStatus })
+        body: JSON.stringify({ 
+          admission_no: student.admission_no,
+          status: newStatus 
+        })
       });
       fetchStudents();
     } catch (error) {
@@ -221,7 +266,7 @@ export default function StudentsPage() {
     setValidationError('');
   };
 
-  const openModal = (type: 'add' | 'modify', student?: Student) => {
+  const openModal = (type, student) => {
     setModalType(type);
     setValidationError('');
     if (type === 'add') {
@@ -232,8 +277,8 @@ export default function StudentsPage() {
       setEditingStudent(student);
       setFormData({
         admission_no: student.admission_no || student.student_id || '',
-        name: student.name || '',
-        class: student.class || '',
+        name: student.name || student.full_name || '',
+        class: student.class || student.class_id || '',
         section: student.section || '',
         roll_no: student.roll_no || '',
         parent1_name: student.parent1_name || '',
@@ -242,7 +287,7 @@ export default function StudentsPage() {
         parent2_name: student.parent2_name || '',
         parent2_phone: student.parent2_phone || '',
         parent2_email: student.parent2_email || '',
-        student_contact: student.student_contact || '',
+        student_contact: student.student_phone || student.student_contact || '',
         student_email: student.student_email || '',
         guardian_name: student.guardian_name || '',
         guardian_phone: student.guardian_phone || '',
@@ -253,7 +298,7 @@ export default function StudentsPage() {
     setIsModalOpen(true);
   };
 
-  const handleBulkTranslate = async (langCode: string) => {
+  const handleBulkTranslate = async (langCode) => {
     setIsTranslatingAll(true);
     setShowBulkTranslateDropdown(false);
     try {
@@ -266,11 +311,6 @@ export default function StudentsPage() {
     }
   };
 
-  const handleVoiceInput = (fieldName: string, transcript: string) => {
-    setFormData(prev => ({ ...prev, [fieldName]: transcript }));
-  };
-
-  // Wizard handlers
   const handleWizardSuccess = () => {
     fetchStudents();
   };
@@ -296,6 +336,10 @@ export default function StudentsPage() {
     inactive: Array.isArray(students) ? students.filter(s => s.status === 'Inactive').length : 0,
   };
 
+  console.log('Students in state:', students);
+  console.log('Filtered students:', filteredStudents);
+  console.log('Stats:', stats);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
@@ -307,7 +351,6 @@ export default function StudentsPage() {
           <p className="text-white/60">Manage all students, track their progress, and update records</p>
         </div>
 
-        {/* Bulk Translation Dropdown */}
         <div className="flex items-center gap-3 mb-4">
           <span className="text-white/50 text-sm flex items-center gap-1">
             🌐 Translate All:
@@ -341,7 +384,6 @@ export default function StudentsPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-6">
             <p className="text-white/80 text-sm">Total Students</p>
@@ -360,7 +402,6 @@ export default function StudentsPage() {
           </div>
         </div>
 
-        {/* Buttons */}
         <div className="flex flex-wrap gap-4 mb-6">
           <button onClick={() => openModal('add')} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
             <Plus size={18} /> Add Student
@@ -375,7 +416,6 @@ export default function StudentsPage() {
           </button>
         </div>
 
-        {/* Search */}
         <div className="flex flex-wrap gap-4 mb-6">
           <div className="flex-1 min-w-[200px] relative">
             <input
@@ -391,7 +431,7 @@ export default function StudentsPage() {
           </div>
           <select
             value={searchType}
-            onChange={(e) => setSearchType(e.target.value as any)}
+            onChange={(e) => setSearchType(e.target.value)}
             className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
           >
             <option value="name">Search by Name</option>
@@ -401,7 +441,6 @@ export default function StudentsPage() {
           </select>
         </div>
 
-        {/* Table */}
         <div className="bg-white/5 rounded-2xl overflow-hidden border border-white/10">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -429,12 +468,14 @@ export default function StudentsPage() {
                 {loading ? (
                   <tr><td colSpan={16} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredStudents.length === 0 ? (
-                  <tr><td colSpan={16} className="text-center py-8 text-white/60">No students found</td></tr>
+                  <tr><td colSpan={16} className="text-center py-8 text-white/60">
+                    {searchTerm ? 'No students match your search' : 'No students found'}
+                  </td></tr>
                 ) : (
                   filteredStudents.map((student, idx) => {
                     const displayName = translations[student.id] || student.name;
                     return (
-                      <tr key={idx} className="border-t border-white/10 hover:bg-white/5">
+                      <tr key={student.id || idx} className="border-t border-white/10 hover:bg-white/5">
                         <td className="px-4 py-3 text-white/80">{student.admission_no || student.student_id || student.id}</td>
                         <td className="px-4 py-3 text-white flex items-center gap-2">
                           {displayName}
@@ -482,7 +523,6 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 3-Step Wizard Modal - Replaces the old modal */}
       <StudentFormWizard
         isOpen={isModalOpen}
         onClose={handleWizardClose}
