@@ -1,7 +1,7 @@
 // app/api/notices/route.js
 
 import { NextResponse } from 'next/server';
-import { withClient } from '@/lib/db';
+import { withClient } from '../../../lib/db';
 
 // GET - Fetch all notices
 export async function GET() {

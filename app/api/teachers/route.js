@@ -1,7 +1,7 @@
 // app/api/teachers/route.js
 
 import { NextResponse } from 'next/server';
-import { withClient } from '@/lib/db';
+import { withClient } from '../../../lib/db';
 
 // GET - Fetch all teachers
 export async function GET() {

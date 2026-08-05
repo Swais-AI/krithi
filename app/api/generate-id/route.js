@@ -1,11 +1,10 @@
 // app/api/generate-id/route.js
 
 import { NextResponse } from 'next/server';
-import { withClient } from '@/lib/db';
+import { withClient } from '../../../lib/db';
 
 export async function GET() {
   try {
-    // Get the next admission number
     const result = await withClient(async (client) => {
       return await client.query(`
         SELECT COALESCE(MAX(CAST(SUBSTRING(admission_no, 6) AS INTEGER)), 0) + 1 as next_id

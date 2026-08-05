@@ -1,7 +1,7 @@
 // app/api/students/route.js
 
 import { NextResponse } from 'next/server';
-import { withClient } from '@/lib/db';
+import { withClient } from '../../../lib/db';
 
 // GET - Fetch all students
 export async function GET() {
@@ -95,7 +95,6 @@ export async function PUT(request) {
     const body = await request.json();
     const { id, ...updateData } = body;
 
-    // Check if student exists
     const checkExists = await withClient(async (client) => {
       return await client.query(
         'SELECT student_id FROM sgs_student_master WHERE student_id = $1',
