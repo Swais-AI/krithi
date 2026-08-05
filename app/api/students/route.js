@@ -43,7 +43,7 @@ export async function POST(request) {
     const {
       admission_no,
       student_name,
-      class,
+      class: className,
       section,
       father_name,
       mother_name,
@@ -70,12 +70,30 @@ export async function POST(request) {
     const result = await withClient(async (client) => {
       return await client.query(
         `INSERT INTO sgs_student_master (
-          admission_no, student_name, class, section, 
-          father_name, mother_name, mobile_no, parent_contact, student_contact,
-          created_at, status
+          admission_no,
+          student_name,
+          class,
+          section,
+          father_name,
+          mother_name,
+          mobile_no,
+          parent_contact,
+          student_contact,
+          created_at,
+          status
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'Active')
         RETURNING *`,
-        [admission_no, student_name, class, section, father_name, mother_name, mobile_no, parent_contact, student_contact]
+        [
+          admission_no,
+          student_name,
+          className,
+          section,
+          father_name,
+          mother_name,
+          mobile_no,
+          parent_contact,
+          student_contact
+        ]
       );
     });
 
@@ -112,7 +130,7 @@ export async function PUT(request) {
     const {
       admission_no,
       student_name,
-      class,
+      class: className,
       section,
       father_name,
       mother_name,
@@ -136,7 +154,18 @@ export async function PUT(request) {
           modified_at = NOW()
         WHERE student_id = $10
         RETURNING *`,
-        [admission_no, student_name, class, section, father_name, mother_name, mobile_no, parent_contact, student_contact, id]
+        [
+          admission_no,
+          student_name,
+          className,
+          section,
+          father_name,
+          mother_name,
+          mobile_no,
+          parent_contact,
+          student_contact,
+          id
+        ]
       );
     });
 
