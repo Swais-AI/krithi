@@ -103,7 +103,7 @@ export async function POST(request) {
     const {
       admission_no,
       full_name,
-      class_id,
+      class_id: className,
       section,
       roll_no,
       parent1_name,
@@ -161,25 +161,35 @@ export async function POST(request) {
       );
     }
 
-    // Insert student
-    const result = await pool.query(
-      `INSERT INTO sgs_student_master (
-        admission_no, full_name, class_id, section, roll_no,
-        parent1_name, parent1_phone, parent1_email,
-        parent2_name, parent2_phone, parent2_email,
-        student_phone, student_email,
-        guardian_name, guardian_phone, guardian_email,
-        record_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'Active')
-      RETURNING *`,
-      [
-        admission_no, full_name, class_id, section, roll_no || null,
-        parent1_name, parent1_phone || null, parent1_email || null,
-        parent2_name || null, parent2_phone || null, parent2_email || null,
-        student_phone || null, student_email || null,
-        guardian_name || null, guardian_phone || null, guardian_email || null
-      ]
-    );
+    const result = await withClient(async (client) => {
+      return await client.query(
+        `INSERT INTO sgs_student_master (
+          admission_no,
+          student_name,
+          class,
+          section,
+          father_name,
+          mother_name,
+          mobile_no,
+          parent_contact,
+          student_contact,
+          created_at,
+          status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'Active')
+        RETURNING *`,
+        [
+          admission_no,
+          student_name,
+          className,
+          section,
+          father_name,
+          mother_name,
+          mobile_no,
+          parent_contact,
+          student_contact
+        ]
+      );
+    });
 
     return NextResponse.json({
       success: true,
@@ -238,24 +248,47 @@ export async function PUT(request) {
       );
     }
 
-    const result = await pool.query(
-      `UPDATE sgs_student_master SET
-        full_name = $1, class_id = $2, section = $3, roll_no = $4,
-        parent1_name = $5, parent1_phone = $6, parent1_email = $7,
-        parent2_name = $8, parent2_phone = $9, parent2_email = $10,
-        student_phone = $11, student_email = $12,
-        guardian_name = $13, guardian_phone = $14, guardian_email = $15
-      WHERE admission_no = $16
-      RETURNING *`,
-      [
-        full_name, class_id, section, roll_no || null,
-        parent1_name, parent1_phone || null, parent1_email || null,
-        parent2_name || null, parent2_phone || null, parent2_email || null,
-        student_phone || null, student_email || null,
-        guardian_name || null, guardian_phone || null, guardian_email || null,
-        admission_no
-      ]
-    );
+    const {
+      admission_no,
+      student_name,
+      class: className,
+      section,
+      father_name,
+      mother_name,
+      mobile_no,
+      parent_contact,
+      student_contact
+    } = updateData;
+
+    const result = await withClient(async (client) => {
+      return await client.query(
+        `UPDATE sgs_student_master SET
+          admission_no = $1,
+          student_name = $2,
+          class = $3,
+          section = $4,
+          father_name = $5,
+          mother_name = $6,
+          mobile_no = $7,
+          parent_contact = $8,
+          student_contact = $9,
+          modified_at = NOW()
+        WHERE student_id = $10
+        RETURNING *`,
+        [
+          admission_no,
+          student_name,
+          className,
+          section,
+          father_name,
+          mother_name,
+          mobile_no,
+          parent_contact,
+          student_contact,
+          id
+        ]
+      );
+    });
 
     return NextResponse.json({
       success: true,
