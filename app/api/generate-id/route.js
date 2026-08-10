@@ -30,6 +30,8 @@ export async function GET(request) {
       idColumn = 'teacher_id';
     }
     
+    console.log(`🔍 Generating ${type} ID...`);
+    
     // Check if table exists
     const tableCheck = await pool.query(`
       SELECT EXISTS (
@@ -39,12 +41,12 @@ export async function GET(request) {
     `, [tableName]);
     
     if (!tableCheck.rows[0].exists) {
-      // Return a fallback ID
+      console.log(`❌ Table ${tableName} not found, using fallback`);
       const fallbackId = `${prefix}001`;
       return NextResponse.json({ id: fallbackId });
     }
     
-    // Get the highest existing ID
+    // Get the highest ID
     const result = await pool.query(
       `SELECT ${idColumn} FROM ${tableName} WHERE ${idColumn} LIKE $1 ORDER BY ${idColumn} DESC LIMIT 1`,
       [`${prefix}%`]
@@ -53,9 +55,13 @@ export async function GET(request) {
     let nextNumber = 1;
     if (result.rows.length > 0) {
       const lastId = result.rows[0][idColumn];
+      console.log(`📝 Last ID: ${lastId}`);
+      
+      // Extract number from ID (e.g., S305 -> 305)
       const numPart = parseInt(lastId.replace(prefix, ''));
       if (!isNaN(numPart)) {
         nextNumber = numPart + 1;
+        console.log(`📊 Next number: ${nextNumber}`);
       }
     }
     
@@ -65,7 +71,6 @@ export async function GET(request) {
     return NextResponse.json({ id: newId });
   } catch (error) {
     console.error('❌ Error generating ID:', error);
-    // Return a fallback ID
     const fallbackId = `S${String(Math.floor(Math.random() * 9000) + 1000)}`;
     return NextResponse.json({ id: fallbackId });
   }
