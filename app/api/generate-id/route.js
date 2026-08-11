@@ -31,6 +31,7 @@ export async function GET(request) {
     }
     
     console.log(`🔍 Generating ${type} ID...`);
+    console.log(`📋 Table: ${tableName}, Column: ${idColumn}, Prefix: ${prefix}`);
     
     // Check if table exists
     const tableCheck = await pool.query(`
@@ -46,22 +47,26 @@ export async function GET(request) {
       return NextResponse.json({ id: fallbackId });
     }
     
-    // Get the highest ID
+    // Get all IDs that start with the prefix
     const result = await pool.query(
-      `SELECT ${idColumn} FROM ${tableName} WHERE ${idColumn} LIKE $1 ORDER BY ${idColumn} DESC LIMIT 1`,
+      `SELECT ${idColumn} FROM ${tableName} WHERE ${idColumn} LIKE $1 ORDER BY ${idColumn} DESC`,
       [`${prefix}%`]
     );
+    
+    console.log(`📊 Found ${result.rows.length} existing ${type} IDs`);
     
     let nextNumber = 1;
     if (result.rows.length > 0) {
       const lastId = result.rows[0][idColumn];
       console.log(`📝 Last ID: ${lastId}`);
       
-      // Extract number from ID (e.g., S305 -> 305)
+      // Extract the number part from the ID
       const numPart = parseInt(lastId.replace(prefix, ''));
       if (!isNaN(numPart)) {
         nextNumber = numPart + 1;
         console.log(`📊 Next number: ${nextNumber}`);
+      } else {
+        console.log(`⚠️ Could not parse number from ${lastId}`);
       }
     }
     
@@ -71,7 +76,9 @@ export async function GET(request) {
     return NextResponse.json({ id: newId });
   } catch (error) {
     console.error('❌ Error generating ID:', error);
+    // Return a fallback ID
     const fallbackId = `S${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    console.log(`⚠️ Using fallback ID: ${fallbackId}`);
     return NextResponse.json({ id: fallbackId });
   }
 }
