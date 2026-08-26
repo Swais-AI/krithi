@@ -1,53 +1,50 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import postgres from 'postgres';
+import { Pool } from 'pg';
+import { getToken } from 'next-auth/jwt';
 
-const pool = postgres(process.env.DATABASE_URL, { 
-  ssl: 'require'
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  ssl: { rejectUnauthorized: false }
 });
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 export async function GET(request) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+    
+    if (!token) {
       return NextResponse.json(
-        { success: false, message: 'No token provided' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split(' ')[1];
-    
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Get user from database
-    const users = await pool`
-      SELECT user_id, email, username, role, is_active, created_at
-      FROM users_master 
-      WHERE user_id = ${decoded.userId}
-    `;
+    const result = await pool.query(
+      `SELECT user_id, username, email, role, school_id, is_active 
+       FROM sgs_users_masters 
+       WHERE email = $1 AND is_active = true`,
+      [token.email]
+    );
 
-    if (users.length === 0) {
+    if (result.rows.length === 0) {
       return NextResponse.json(
-        { success: false, message: 'User not found' },
+        { error: 'User not found' },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      user: users[0]
+      user: result.rows[0]
     });
-
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('Error fetching auth user:', error);
     return NextResponse.json(
-      { success: false, message: 'Invalid or expired token' },
-      { status: 401 }
+      { error: 'Failed to fetch user' },
+      { status: 500 }
     );
   }
 }

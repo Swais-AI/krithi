@@ -1,40 +1,99 @@
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, BigInteger
-from app.database import Base
+# Database models for SGS backend
+# Updated to use sgs_users_masters table
 
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy.sql import func
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
+Base = declarative_base()
 
 class User(Base):
-    """
-    Maps to the users_master table in swais_prod.
-    Python attribute names are kept clean; SQLAlchemy maps them to the actual DB column names.
-    """
+    __tablename__ = 'sgs_users_masters'
+    
+    user_id = Column(Integer, primary_key=True)
+    username = Column(String(100), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(50), default='user')
+    school_id = Column(Integer, ForeignKey('sgs_school_masters.school_id'))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
 
-    __tablename__ = "users_master"
+class School(Base):
+    __tablename__ = 'sgs_school_masters'
+    
+    school_id = Column(Integer, primary_key=True)
+    school_name = Column(String(255), nullable=False)
+    school_code = Column(String(50), unique=True)
+    address = Column(Text)
+    phone = Column(String(20))
+    email = Column(String(255))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
 
-    # Primary key — BIGSERIAL auto-incremented integer in users_master
-    id                    = Column("user_id",               BigInteger, primary_key=True, autoincrement=True)
+class Student(Base):
+    __tablename__ = 'sgs_student_master'
+    
+    admission_no = Column(String(50), primary_key=True)
+    full_name = Column(String(150), nullable=False)
+    class_id = Column(Integer, ForeignKey('sgs_class_master.class_id'))
+    section = Column(String(20))
+    roll_no = Column(String(20))
+    parent1_name = Column(String(150))
+    parent1_phone = Column(String(20))
+    parent1_email = Column(String(150))
+    parent2_name = Column(String(150))
+    parent2_phone = Column(String(20))
+    parent2_email = Column(String(150))
+    student_phone = Column(String(20))
+    student_email = Column(String(150))
+    guardian_name = Column(String(150))
+    guardian_phone = Column(String(20))
+    guardian_email = Column(String(150))
+    record_status = Column(String(20), default='Active')
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
 
-    # Auth / identity
-    email                 = Column("login_id",              String(100), unique=True, nullable=False, index=True)
-    email_id              = Column("email_id",              String(150), nullable=True)   # mirrors login_id
-    password_hash         = Column("password_hash",         String,      nullable=True)   # NULL for OAuth users
+class Teacher(Base):
+    __tablename__ = 'sgs_teacher_master'
+    
+    teacher_id = Column(String(50), primary_key=True)
+    full_name = Column(String(150), nullable=False)
+    subject_name = Column(String(100))
+    qualification = Column(String(100))
+    class_id = Column(Integer, ForeignKey('sgs_class_master.class_id'))
+    section_1 = Column(String(20))
+    section_2 = Column(String(20))
+    role = Column(String(50))
+    is_class_teacher = Column(Boolean, default=False)
+    subjects = Column(Text)  # Comma separated
+    phone = Column(String(20))
+    email_id = Column(String(150))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
 
-    # Profile
-    name                  = Column("full_name",             String(150), nullable=False, default="")
-    first_name            = Column("first_name",            String(100), nullable=True)
-    last_name             = Column("last_name",             String(100), nullable=True)
-    phone_number          = Column("mobile_no",             String(20),  nullable=True)
-    dob                   = Column("dob",                   String(20),  nullable=True)
+class Class(Base):
+    __tablename__ = 'sgs_class_master'
+    
+    class_id = Column(Integer, primary_key=True)
+    class_name = Column(String(50))
+    section_name = Column(String(20))
+    record_status = Column(String(20), default='Active')
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
 
-    # Role & industry — stored as plain VARCHAR in users_master
-    role                  = Column("role",                  String(10),  nullable=False, default="USER")
-    user_type             = Column("user_type",             String(20),  nullable=True)
-
-    # Activation flow
-    registration_complete = Column("registration_complete", Boolean,     nullable=False, default=False)
-    is_active             = Column("is_active",             Boolean,     nullable=False, default=False)
-
-    # Audit
-    createdAt             = Column("created_datetime",      DateTime(timezone=True),
-                                   default=lambda: datetime.now(timezone.utc))
-    record_status         = Column("record_status",         String(20),  nullable=True, default="Active")
+class Notice(Base):
+    __tablename__ = 'sgs_notice_board'
+    
+    notice_id = Column(Integer, primary_key=True)
+    notice_title = Column(String(200), nullable=False)
+    notice_text = Column(Text, nullable=False)
+    notice_date = Column(DateTime, server_default=func.now())
+    applicable_class = Column(String(50))
+    record_status = Column(String(20), default='Active')
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
