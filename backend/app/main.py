@@ -14,6 +14,17 @@ from app.routers import auth, users, students, teachers, classes, notices, ai
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Get allowed origins from environment variable ONLY
+# No hardcoded defaults - must be set in .env file
+ALLOWED_ORIGINS_STR = os.getenv('ALLOWED_ORIGINS', '')
+if not ALLOWED_ORIGINS_STR:
+    logger.warning("⚠️ ALLOWED_ORIGINS environment variable is not set! CORS will be restrictive.")
+    ALLOWED_ORIGINS = []
+else:
+    ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_STR.split(',') if origin.strip()]
+
+logger.info(f"🔧 CORS Allowed Origins: {ALLOWED_ORIGINS}")
+
 # Create FastAPI app
 app = FastAPI(
     title="SGS School Admin API",
@@ -24,11 +35,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://staging.sgs.swais.in",
-        "https://sgs.swais.in"
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,7 +80,8 @@ async def root():
     return {
         "message": "SGS School Admin API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "environment": os.getenv('NODE_ENV', 'development')
     }
 
 @app.get("/health")
@@ -81,9 +89,11 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "database": "connected"
+        "database": "connected",
+        "environment": os.getenv('NODE_ENV', 'development')
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv('PORT', 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
