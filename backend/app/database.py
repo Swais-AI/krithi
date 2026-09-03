@@ -1,41 +1,34 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, declarative_base
-from app.config import settings
+import os
+from contextlib import contextmanager
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from psycopg2.pool import SimpleConnectionPool
 
-# SQLAlchemy needs postgresql+psycopg2:// driver prefix
-# Strip any Prisma-specific params (schema=public) that psycopg2 doesn't understand
-DATABASE_URL = settings.DATABASE_URL.replace(
-    "postgresql://", "postgresql+psycopg2://"
-).split("&schema=")[0].split("?schema=")[0]
+pool = None
 
-# For AWS RDS — sslmode=require stays in the URL, psycopg2 handles it natively
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-    connect_args={"connect_timeout": 5},  # 5 sec timeout — server starts fast even if RDS unreachable
-)
+def get_pool():
+    global pool
+    if pool is None:
+        database_url = os.getenv('DATABASE_URL')
+        import urllib.parse
+        result = urllib.parse.urlparse(database_url)
+        pool = SimpleConnectionPool(
+            minconn=1,
+            maxconn=10,
+            host=result.hostname,
+            port=result.port or 5432,
+            database=result.path.lstrip('/'),
+            user=result.username,
+            password=result.password,
+            sslmode='require'
+        )
+    return pool
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-
+@contextmanager
 def get_db():
-    """FastAPI dependency — yields a DB session per request."""
-    db = SessionLocal()
+    pool = get_pool()
+    conn = pool.getconn()
     try:
-        yield db
+        yield conn
     finally:
-        db.close()
-
-
-def check_db_connection() -> bool:
-    """Ping the DB — used at startup. Times out after 5 seconds."""
-    try:
-        with engine.connect().execution_options(timeout=5) as conn:
-            conn.execute(text("SELECT 1"))
-        return True
-    except Exception as e:
-        print(f"   Database    : ❌ Connection failed — {e}")
-        return False
+        pool.putconn(conn)
