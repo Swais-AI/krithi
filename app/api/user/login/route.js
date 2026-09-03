@@ -1,16 +1,7 @@
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { sql } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  ssl: { rejectUnauthorized: false }
-});
 
 export async function POST(request) {
   try {
@@ -23,41 +14,27 @@ export async function POST(request) {
       );
     }
 
-    // Find user
-    const result = await pool.query(
-      `SELECT user_id, username, email, password_hash, role, school_id, is_active 
-       FROM sgs_users_masters 
-       WHERE email = $1`,
-      [email]
-    );
+    const users = await sql`
+      SELECT user_id, username, email, password_hash, role, school_id, is_active
+      FROM sgs_users_masters
+      WHERE email = ${email}
+    `;
 
-    if (result.rows.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      );
+    if (users.length === 0) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const user = result.rows[0];
+    const user = users[0];
 
-    // Check if user is active
     if (!user.is_active) {
-      return NextResponse.json(
-        { error: 'Account is deactivated' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Account is deactivated' }, { status: 403 });
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user.user_id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your-secret-key',
@@ -77,9 +54,6 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('Error logging in:', error);
-    return NextResponse.json(
-      { error: 'Failed to login' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to login' }, { status: 500 });
   }
 }
