@@ -17,7 +17,7 @@ export default function OthersPage() {
   const [activeTab, setActiveTab] = useState('notifications');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('add');
-  const [modalFor, setModalFor] = useState('notice'); // 'notice' or 'event'
+  const [modalFor, setModalFor] = useState('notice');
   const [selectedItem, setSelectedItem] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [formData, setFormData] = useState({
@@ -100,7 +100,6 @@ export default function OthersPage() {
       applicable_class: formData.applicable_class
     };
     
-    // Add type for events
     if (modalFor === 'event') {
       payload.type = formData.type || 'event';
     }
@@ -195,7 +194,6 @@ export default function OthersPage() {
 
   const currentData = activeTab === 'notifications' ? filteredNotifications : filteredEvents;
   const isDataEmpty = currentData.length === 0;
-  const itemLabel = activeTab === 'notifications' ? 'notification' : 'event';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
@@ -322,7 +320,6 @@ export default function OthersPage() {
         </div>
       </div>
 
-      {/* Add/Modify Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
