@@ -6,8 +6,9 @@ import {
   Plus, Pencil, Trash2, Search, X,
   Users, UserCheck, UserX, BookOpen
 } from 'lucide-react';
-// Import the 3-step wizard
 import StudentFormWizard from '../../../components/StudentFormWizard';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState([]);
@@ -18,9 +19,6 @@ export default function StudentsPage() {
   const [modalType, setModalType] = useState('add');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [validationError, setValidationError] = useState('');
-  const [translations, setTranslations] = useState({});
-  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
-  const [showBulkTranslateDropdown, setShowBulkTranslateDropdown] = useState(false);
   const [formData, setFormData] = useState({
     admission_no: '',
     name: '',
@@ -50,7 +48,8 @@ export default function StudentsPage() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/students');
+      console.log('🔍 Fetching students from:', `${API_BASE_URL}/students`);
+      const response = await fetch(`${API_BASE_URL}/students`);
       const data = await response.json();
       console.log('API Response:', data);
       
@@ -77,8 +76,8 @@ export default function StudentsPage() {
           guardian_name: s.guardian_name || '',
           guardian_phone: s.guardian_phone || '',
           guardian_email: s.guardian_email || '',
-          status: s.record_status === 'Active' ? 'Active' : (s.status || 'Active'),
-          record_status: s.record_status || 'Active'
+          status: s.record_status === 'Active' ? 'Active' : (s.status || 'Inactive'),
+          record_status: s.record_status || 'Inactive'
         }));
         setStudents(mappedStudents);
       } else {
@@ -90,6 +89,50 @@ export default function StudentsPage() {
       setStudents([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // FIX: Handle status toggle properly
+  const handleToggleStatus = async (student) => {
+    try {
+      const newStatus = student.status === 'Active' ? 'Inactive' : 'Active';
+      console.log(`🔄 Toggling status for ${student.admission_no}: ${student.status} -> ${newStatus}`);
+      
+      const response = await fetch(`${API_BASE_URL}/students`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admission_no: student.admission_no,
+          status: newStatus,
+          full_name: student.full_name,
+          class_id: student.class_id,
+          section: student.section,
+          roll_no: student.roll_no,
+          parent1_name: student.parent1_name,
+          parent1_phone: student.parent1_phone,
+          parent1_email: student.parent1_email,
+          parent2_name: student.parent2_name,
+          parent2_phone: student.parent2_phone,
+          parent2_email: student.parent2_email,
+          student_phone: student.student_phone,
+          student_email: student.student_email,
+          guardian_name: student.guardian_name,
+          guardian_phone: student.guardian_phone,
+          guardian_email: student.guardian_email
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Status updated successfully');
+        await fetchStudents();
+      } else {
+        const error = await response.json();
+        console.error('❌ Failed to update status:', error);
+        alert(`Failed to update status: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('❌ Error toggling status:', error);
+      alert('An error occurred while updating status');
     }
   };
 
@@ -157,6 +200,22 @@ export default function StudentsPage() {
     setIsModalOpen(false);
     setEditingStudent(null);
     resetForm();
+  };
+
+  const handleDelete = async (id) => {
+    if (confirm('Are you sure you want to delete this student?')) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/students?id=${id}`, { method: 'DELETE' });
+        if (response.ok) {
+          fetchStudents();
+        } else {
+          alert('Failed to delete student');
+        }
+      } catch (error) {
+        console.error('Error deleting student:', error);
+        alert('An error occurred');
+      }
+    }
   };
 
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
@@ -292,20 +351,12 @@ export default function StudentsPage() {
                       <td className="px-4 py-3 text-white/80 text-sm">{student.guardian_email || '-'}</td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => {
-                            // Toggle status logic
-                            const newStatus = student.status === 'Active' ? 'Inactive' : 'Active';
-                            fetch(`/api/students`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ ...student, status: newStatus })
-                            }).then(() => fetchStudents());
-                          }}
+                          onClick={() => handleToggleStatus(student)}
                           className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             student.status === 'Active' 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : 'bg-red-500/20 text-red-400'
-                          }`}
+                              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                              : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          } transition cursor-pointer`}
                         >
                           {student.status === 'Active' ? '● Active' : '○ Inactive'}
                         </button>
@@ -319,12 +370,7 @@ export default function StudentsPage() {
                             <Pencil size={16} />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this student?')) {
-                                fetch(`/api/students?id=${student.admission_no}`, { method: 'DELETE' })
-                                  .then(() => fetchStudents());
-                              }
-                            }}
+                            onClick={() => handleDelete(student.admission_no || student.id)}
                             className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition"
                           >
                             <Trash2 size={16} />

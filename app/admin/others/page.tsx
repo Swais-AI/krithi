@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { 
   Bell, Calendar, Plus, Search, Edit2, Trash2, 
-  X, Megaphone
+  X, Megaphone, CalendarPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
 export default function OthersPage() {
   const [notifications, setNotifications] = useState([]);
@@ -15,13 +17,15 @@ export default function OthersPage() {
   const [activeTab, setActiveTab] = useState('notifications');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('add');
+  const [modalFor, setModalFor] = useState('notice'); // 'notice' or 'event'
   const [selectedItem, setSelectedItem] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     message: '',
     date: '',
-    applicable_class: 'all'
+    applicable_class: 'all',
+    type: 'event'
   });
 
   useEffect(() => {
@@ -31,11 +35,13 @@ export default function OthersPage() {
 
   const fetchNotifications = async () => {
     try {
-      setLoading(true);
-      const response = await fetch('/api/notices');
+      const response = await fetch(`${API_BASE_URL}/notices`);
+      if (!response.ok) {
+        console.error('Notices API returned:', response.status);
+        setNotifications([]);
+        return;
+      }
       const data = await response.json();
-      console.log('Notices data:', data);
-      
       if (Array.isArray(data)) {
         setNotifications(data);
       } else {
@@ -45,14 +51,17 @@ export default function OthersPage() {
     } catch (error) {
       console.error('Error fetching notices:', error);
       setNotifications([]);
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchEvents = async () => {
     try {
-      const response = await fetch('/api/events');
+      const response = await fetch(`${API_BASE_URL}/events`);
+      if (!response.ok) {
+        console.error('Events API returned:', response.status);
+        setEvents([]);
+        return;
+      }
       const data = await response.json();
       if (Array.isArray(data)) {
         setEvents(data);
@@ -62,6 +71,8 @@ export default function OthersPage() {
     } catch (error) {
       console.error('Error fetching events:', error);
       setEvents([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -80,42 +91,60 @@ export default function OthersPage() {
 
   const handleAdd = async () => {
     if (!validateForm()) return;
+    
+    const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
+    const payload = {
+      title: formData.title,
+      message: formData.message,
+      date: formData.date || new Date().toISOString().split('T')[0],
+      applicable_class: formData.applicable_class
+    };
+    
+    // Add type for events
+    if (modalFor === 'event') {
+      payload.type = formData.type || 'event';
+    }
+
     try {
-      const response = await fetch('/api/notices', {
+      const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: formData.title,
-          message: formData.message,
-          date: formData.date || new Date().toISOString().split('T')[0],
-          applicable_class: formData.applicable_class
-        })
+        body: JSON.stringify(payload)
       });
       if (response.ok) {
-        fetchNotifications();
+        if (modalFor === 'notice') {
+          fetchNotifications();
+        } else {
+          fetchEvents();
+        }
         setIsModalOpen(false);
         resetForm();
       } else {
         const error = await response.json();
-        setValidationError(error.error || 'Failed to add notice');
+        setValidationError(error.error || `Failed to add ${modalFor}`);
       }
     } catch (error) {
-      console.error('Error adding notice:', error);
-      setValidationError('Failed to add notice');
+      console.error(`Error adding ${modalFor}:`, error);
+      setValidationError(`Failed to add ${modalFor}`);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this notice?')) {
+  const handleDelete = async (id, type) => {
+    if (confirm(`Are you sure you want to delete this ${type}?`)) {
       try {
-        const response = await fetch(`/api/notices?id=${id}`, { method: 'DELETE' });
+        const apiEndpoint = type === 'notice' ? 'notices' : 'events';
+        const response = await fetch(`${API_BASE_URL}/${apiEndpoint}?id=${id}`, { method: 'DELETE' });
         if (response.ok) {
-          fetchNotifications();
+          if (type === 'notice') {
+            fetchNotifications();
+          } else {
+            fetchEvents();
+          }
         } else {
-          alert('Failed to delete notice');
+          alert(`Failed to delete ${type}`);
         }
       } catch (error) {
-        console.error('Error deleting notice:', error);
+        console.error(`Error deleting ${type}:`, error);
         alert('An error occurred');
       }
     }
@@ -126,14 +155,16 @@ export default function OthersPage() {
       title: '',
       message: '',
       date: new Date().toISOString().split('T')[0],
-      applicable_class: 'all'
+      applicable_class: 'all',
+      type: 'event'
     });
     setSelectedItem(null);
     setValidationError('');
   };
 
-  const openModal = (type, item = null) => {
+  const openModal = (type, item = null, forType = 'notice') => {
     setModalType(type);
+    setModalFor(forType);
     setValidationError('');
     if (type === 'add') {
       resetForm();
@@ -143,7 +174,8 @@ export default function OthersPage() {
         title: item.title || '',
         message: item.message || '',
         date: item.date || new Date().toISOString().split('T')[0],
-        applicable_class: item.applicable_class || 'all'
+        applicable_class: item.applicable_class || 'all',
+        type: item.type || 'event'
       });
     }
     setIsModalOpen(true);
@@ -163,6 +195,7 @@ export default function OthersPage() {
 
   const currentData = activeTab === 'notifications' ? filteredNotifications : filteredEvents;
   const isDataEmpty = currentData.length === 0;
+  const itemLabel = activeTab === 'notifications' ? 'notification' : 'event';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
@@ -198,19 +231,28 @@ export default function OthersPage() {
             <Calendar className="inline w-4 h-4 mr-2" />
             Events & Tours ({events.length})
           </button>
-          <button
-            onClick={() => openModal('add')}
-            className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition"
-          >
-            <Plus size={18} /> Add Notice
-          </button>
+          {activeTab === 'notifications' ? (
+            <button
+              onClick={() => openModal('add', null, 'notice')}
+              className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition"
+            >
+              <Plus size={18} /> Add Notice
+            </button>
+          ) : (
+            <button
+              onClick={() => openModal('add', null, 'event')}
+              className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition"
+            >
+              <CalendarPlus size={18} /> Add Event
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-4 mb-6">
           <div className="flex-1 min-w-[200px] relative">
             <input
               type="text"
-              placeholder="Search notices..."
+              placeholder={`Search ${activeTab}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
@@ -240,7 +282,7 @@ export default function OthersPage() {
                 ) : isDataEmpty ? (
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-white/60">
-                      {searchTerm ? 'No items match your search' : `No ${activeTab} found`}
+                      {searchTerm ? `No ${activeTab} match your search` : `No ${activeTab} found`}
                     </td>
                   </tr>
                 ) : (
@@ -258,13 +300,13 @@ export default function OthersPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => openModal('modify', item)}
+                            onClick={() => openModal('modify', item, activeTab === 'notifications' ? 'notice' : 'event')}
                             className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => handleDelete(item.id, activeTab === 'notifications' ? 'notice' : 'event')}
                             className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition"
                           >
                             <Trash2 size={16} />
@@ -280,6 +322,7 @@ export default function OthersPage() {
         </div>
       </div>
 
+      {/* Add/Modify Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -298,7 +341,9 @@ export default function OthersPage() {
             >
               <div className="flex justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">
-                  {modalType === 'add' ? 'Add New Notice' : 'Modify Notice'}
+                  {modalType === 'add' 
+                    ? `Add New ${modalFor === 'notice' ? 'Notice' : 'Event'}` 
+                    : `Modify ${modalFor === 'notice' ? 'Notice' : 'Event'}`}
                 </h2>
                 <button 
                   onClick={() => { setIsModalOpen(false); resetForm(); }} 
@@ -319,7 +364,7 @@ export default function OthersPage() {
                   <label className="text-white/70 text-sm block mb-1">Title *</label>
                   <input
                     type="text"
-                    placeholder="Enter title"
+                    placeholder={`Enter ${modalFor} title`}
                     value={formData.title}
                     onChange={(e) => setFormData({...formData, title: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
@@ -328,7 +373,7 @@ export default function OthersPage() {
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Message *</label>
                   <textarea
-                    placeholder="Enter message"
+                    placeholder={`Enter ${modalFor} message`}
                     value={formData.message}
                     onChange={(e) => setFormData({...formData, message: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 min-h-[100px]"
@@ -343,6 +388,22 @@ export default function OthersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   />
                 </div>
+                {modalFor === 'event' && (
+                  <div>
+                    <label className="text-white/70 text-sm block mb-1">Type</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                    >
+                      <option value="event">Event</option>
+                      <option value="tour">Tour</option>
+                      <option value="function">Function</option>
+                      <option value="workshop">Workshop</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Applicable Class</label>
                   <select
@@ -363,7 +424,7 @@ export default function OthersPage() {
                   onClick={handleAdd}
                   className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
                 >
-                  {modalType === 'add' ? 'Add Notice' : 'Save Changes'}
+                  {modalType === 'add' ? `Add ${modalFor === 'notice' ? 'Notice' : 'Event'}` : 'Save Changes'}
                 </button>
                 <button
                   onClick={() => { setIsModalOpen(false); resetForm(); }}
