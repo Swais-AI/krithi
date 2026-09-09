@@ -1,100 +1,59 @@
 import { NextResponse } from 'next/server';
-import postgres from 'postgres';
+import { sql } from '@/lib/db';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-const pool = postgres(process.env.DATABASE_URL, { 
-  ssl: 'require'
-});
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const { email, password } = body;
-
-    console.log('Login attempt for email:', email);
+    const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
-        { success: false, message: 'Email and password are required' },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
 
-    // Query the database for the user
-    const users = await pool`
-      SELECT user_id, email, username, role, is_active, password_hash
-      FROM users_master 
+    const users = await sql`
+      SELECT user_id, username, email, password_hash, role, school_id, is_active
+      FROM sgs_users_masters
       WHERE email = ${email}
     `;
 
-    console.log('User found:', users.length > 0 ? 'Yes' : 'No');
-
     if (users.length === 0) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid email or password' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
     const user = users[0];
 
-    // For now, accept any password for testing
-    // In production, use bcrypt.compare()
-    if (user.password_hash !== password && user.password_hash !== 'google_oauth_user') {
-      return NextResponse.json(
-        { success: false, message: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is active
     if (!user.is_active) {
-      return NextResponse.json(
-        { success: false, message: 'Account is inactive. Please contact admin.' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Account is deactivated' }, { status: 403 });
     }
 
-    // Generate JWT Token
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
     const token = jwt.sign(
-      { 
-        userId: user.user_id, 
-        email: user.email, 
-        role: user.role 
-      },
-      JWT_SECRET,
-      { expiresIn: '5h' }
+      { userId: user.user_id, email: user.email, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
     );
-
-    const isAdmin = ['admin', 'super_admin'].includes(user.role);
-
-    console.log('Login successful for:', email);
 
     return NextResponse.json({
       success: true,
-      message: 'Login successful',
-      token: token,
-      isAdmin: isAdmin,
+      token,
       user: {
         id: user.user_id,
-        email: user.email,
         username: user.username,
+        email: user.email,
         role: user.role,
-        isActive: user.is_active
+        school_id: user.school_id
       }
-    }, { status: 200 });
-
+    });
   } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Login failed', 
-        error: error.message 
-      },
-      { status: 500 }
-    );
+    console.error('Error logging in:', error);
+    return NextResponse.json({ error: 'Failed to login' }, { status: 500 });
   }
 }

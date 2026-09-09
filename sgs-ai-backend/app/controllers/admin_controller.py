@@ -1,113 +1,97 @@
-import re
-import json
-from fastapi import Request
-from fastapi.responses import JSONResponse
+# AI Backend Admin Controller
+# Updated to use sgs_ai_usage_logs table
 
-from app.config.ai_config import generate_content
-from app.config.db import pool
-from app.config.languages import SUPPORTED_LANGUAGES
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime, timedelta
 
-# ==========================================================
-# Helper Function: Log AI Usage
-# ==========================================================
+from ..database import get_db
+from ..models import AIUsageLog as AIUsageLogModel
+from ..schemas import AIUsageLog, AIUsageStats
 
-async def log_ai_usage(user_info={}, feature_used=""):
-    name = user_info.get("name", "System Admin")
-    email = user_info.get("email", "admin@sgs.edu")
-    role = user_info.get("role", "Admin")
+router = APIRouter()
 
-    try:
-        await pool.execute(
-            """
-            INSERT INTO ai_usage_logs
-            (user_name, user_email, user_type, feature_used)
-            VALUES ($1,$2,$3,$4)
-            """,
-            name, email, role, feature_used
-        )
-    except Exception as e:
-        print("Error logging AI usage:", e)
+@router.get("/usage-logs", response_model=List[AIUsageLog])
+async def get_usage_logs(
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    user_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Get AI usage logs with optional filters"""
+    
+    query = db.query(AIUsageLogModel)
+    
+    if start_date:
+        query = query.filter(AIUsageLogModel.created_at >= start_date)
+    if end_date:
+        query = query.filter(AIUsageLogModel.created_at <= end_date)
+    if user_id:
+        query = query.filter(AIUsageLogModel.user_id == user_id)
+    
+    logs = query.order_by(AIUsageLogModel.created_at.desc()).all()
+    return logs
 
-# ==========================================================
-# Translate Admin Text
-# ==========================================================
+@router.get("/usage-stats", response_model=AIUsageStats)
+async def get_usage_stats(
+    db: Session = Depends(get_db),
+    days: int = 30
+):
+    """Get AI usage statistics for the last N days"""
+    
+    cutoff_date = datetime.now() - timedelta(days=days)
+    
+    total_usage = db.query(AIUsageLogModel).filter(
+        AIUsageLogModel.created_at >= cutoff_date
+    ).count()
+    
+    usage_by_type = db.query(
+        AIUsageLogModel.operation_type,
+        func.count(AIUsageLogModel.id).label('count')
+    ).filter(
+        AIUsageLogModel.created_at >= cutoff_date
+    ).group_by(AIUsageLogModel.operation_type).all()
+    
+    usage_by_user = db.query(
+        AIUsageLogModel.user_id,
+        func.count(AIUsageLogModel.id).label('count')
+    ).filter(
+        AIUsageLogModel.created_at >= cutoff_date
+    ).group_by(AIUsageLogModel.user_id).order_by(
+        func.count(AIUsageLogModel.id).desc()
+    ).limit(10).all()
+    
+    return {
+        "total_usage": total_usage,
+        "usage_by_type": [
+            {"operation": item[0], "count": item[1]} 
+            for item in usage_by_type
+        ],
+        "top_users": [
+            {"user_id": item[0], "usage_count": item[1]} 
+            for item in usage_by_user
+        ]
+    }
 
-async def translate_admin_text(text, target_language, user_info={}):
-    """
-    Translate text to target language using Gemini AI.
-    Accepts either a single string or a list of strings.
-    """
-    try:
-        # Log the translation request
-        await log_ai_usage(user_info, "admin_text_translation")
-        
-        # Check if language is supported
-        if target_language not in SUPPORTED_LANGUAGES:
-            return {
-                "error": f"Language '{target_language}' is not supported",
-                "supported_languages": list(SUPPORTED_LANGUAGES.keys())
-            }
-        
-        # Handle single string
-        if isinstance(text, str):
-            prompt = f"Translate the following text to {SUPPORTED_LANGUAGES[target_language]}. Only return the translated text, nothing else: {text}"
-            result = generate_content(prompt)
-            return {
-                "original": text,
-                "translated": result["text"],
-                "target_language": target_language
-            }
-        
-        # Handle list of strings
-        elif isinstance(text, list):
-            translated_list = []
-            for item in text:
-                prompt = f"Translate the following text to {SUPPORTED_LANGUAGES[target_language]}. Only return the translated text, nothing else: {item}"
-                result = generate_content(prompt)
-                translated_list.append(result["text"])
-            
-            return {
-                "original": text,
-                "translated": translated_list,
-                "target_language": target_language
-            }
-        
-        else:
-            return {"error": "Invalid input type. Expected string or list of strings."}
-            
-    except Exception as e:
-        print("Translation error:", str(e))
-        return {"error": str(e), "status": "failed"}
+@router.get("/usage-logs/{log_id}", response_model=AIUsageLog)
+async def get_usage_log(log_id: int, db: Session = Depends(get_db)):
+    """Get a specific usage log by ID"""
+    
+    log = db.query(AIUsageLogModel).filter(AIUsageLogModel.id == log_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Usage log not found")
+    return log
 
-# ==========================================================
-# Format Voice Transcription
-# ==========================================================
-
-async def format_voice_transcription(raw_text, user_info={}):
-    """
-    Format and clean voice transcription using Gemini AI.
-    """
-    try:
-        await log_ai_usage(user_info, "voice_transcription_formatting")
-        
-        prompt = f"""
-        Format the following voice transcription into proper text with correct punctuation and grammar:
-        Raw text: {raw_text}
-        
-        Rules:
-        1. Fix grammar and punctuation
-        2. Capitalize proper nouns
-        3. Format as proper sentences
-        4. Return ONLY the formatted text, nothing else
-        """
-        
-        result = generate_content(prompt)
-        
-        return {
-            "raw": raw_text,
-            "formatted": result["text"]
-        }
-        
-    except Exception as e:
-        print("Voice formatting error:", str(e))
-        return {"error": str(e), "status": "failed"}
+@router.delete("/usage-logs/{log_id}")
+async def delete_usage_log(log_id: int, db: Session = Depends(get_db)):
+    """Delete a usage log"""
+    
+    log = db.query(AIUsageLogModel).filter(AIUsageLogModel.id == log_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Usage log not found")
+    
+    db.delete(log)
+    db.commit()
+    
+    return {"message": "Usage log deleted successfully"}

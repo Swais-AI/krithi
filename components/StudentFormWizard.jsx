@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
+
 const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark' }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -55,15 +57,23 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
 
   // Fetch available classes
   useEffect(() => {
-    fetchAvailableClasses();
-  }, []);
+    if (isOpen) {
+      fetchAvailableClasses();
+    }
+  }, [isOpen]);
 
   const fetchAvailableClasses = async () => {
     try {
-      const response = await fetch('/api/classes');
+      const response = await fetch(`${API_BASE_URL}/classes`);
       if (response.ok) {
         const data = await response.json();
         setAvailableClasses(data);
+        if (editData && editData.class_id) {
+          const foundClass = data.find(c => c.class_id === parseInt(editData.class_id));
+          if (foundClass) {
+            setClassInput(foundClass.class_name || editData.class_id.toString());
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching classes:', error);
@@ -94,13 +104,17 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       setClassInput('');
       setStep(1);
       setErrors({});
+      generateStudentId();
     }
   }, [isOpen, editData]);
 
   useEffect(() => {
-    if (editData) {
+    if (editData && availableClasses.length > 0) {
       const classId = editData.class_id || '';
-      setClassInput(classId);
+      const foundClass = availableClasses.find(c => c.class_id === parseInt(classId));
+      const className = foundClass?.class_name || classId;
+      
+      setClassInput(className);
       setFormData({
         admission_no: editData.admission_no || '',
         full_name: editData.full_name || '',
@@ -120,81 +134,17 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         guardian_email: editData.guardian_email || '',
       });
     }
-  }, [editData]);
-
-  useEffect(() => {
-    if (isOpen && !editData) {
-      generateStudentId();
-    }
-  }, [isOpen, editData]);
+  }, [editData, availableClasses]);
 
   const generateStudentId = async () => {
     try {
-      const response = await fetch('/api/generate-id?type=student');
+      const response = await fetch(`${API_BASE_URL}/generate-id?type=student`);
       const data = await response.json();
       if (data.id) {
         setFormData(prev => ({ ...prev, admission_no: data.id }));
       }
     } catch (error) {
       console.error('Error generating ID:', error);
-    }
-  };
-
-  // Prevent Enter key from submitting the form
-  const handleKeyDown = (e) => {
-    // Prevent Enter key from doing anything
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      // Only navigate on steps 1 and 2 if we're not in a textarea
-      if (step === 1 || step === 2) {
-        // Don't automatically go to next step on Enter
-        // Let the user click Next button
-        return;
-      }
-      // On step 3, absolutely prevent any action
-      if (step === 3) {
-        return;
-      }
-    }
-  };
-
-  const handleClassChange = (e) => {
-    const value = e.target.value;
-    setClassInput(value);
-    setShowClassDropdown(true);
-    
-    // Try to convert word to number
-    const lowerValue = value.toLowerCase().trim();
-    let classId = '';
-    
-    if (wordToNumber[lowerValue]) {
-      classId = wordToNumber[lowerValue].toString();
-    } else if (!isNaN(value) && value >= 1 && value <= 12) {
-      classId = value;
-    } else {
-      // Check if it matches any existing class name
-      const matchedClass = availableClasses.find(c => 
-        c.class_name?.toLowerCase() === lowerValue ||
-        numberToWord[c.class_id]?.toLowerCase() === lowerValue
-      );
-      if (matchedClass) {
-        classId = matchedClass.class_id.toString();
-      }
-    }
-    
-    setFormData(prev => ({ ...prev, class_id: classId }));
-    if (errors.class_id) {
-      setErrors(prev => ({ ...prev, class_id: '' }));
-    }
-  };
-
-  const handleClassSelect = (classId) => {
-    const selectedClass = availableClasses.find(c => c.class_id === classId);
-    setClassInput(selectedClass?.class_name || classId.toString());
-    setFormData(prev => ({ ...prev, class_id: classId.toString() }));
-    setShowClassDropdown(false);
-    if (errors.class_id) {
-      setErrors(prev => ({ ...prev, class_id: '' }));
     }
   };
 
@@ -212,28 +162,38 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       if (!formData.admission_no) newErrors.admission_no = 'Student ID is required';
       if (!formData.full_name) newErrors.full_name = 'Student Name is required';
       
-      // Validate class input
-      const classValue = classInput.toLowerCase().trim();
+      // FIX: Validate class properly
       let isValidClass = false;
+      let classValue = classInput.trim() || formData.class_id;
+      
+      // If classValue is empty, check if formData.class_id has value
+      if (!classValue && formData.class_id) {
+        classValue = formData.class_id;
+      }
       
       // Check if it's a number 1-12
-      if (!isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
+      if (classValue && !isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
         isValidClass = true;
       }
       // Check if it's a word (first, second, etc.)
-      else if (wordToNumber[classValue]) {
+      else if (classValue && wordToNumber[classValue.toLowerCase().trim()]) {
         isValidClass = true;
       }
       // Check if it matches existing class name
-      else if (availableClasses.some(c => 
-        c.class_name?.toLowerCase() === classValue ||
-        numberToWord[c.class_id]?.toLowerCase() === classValue
+      else if (classValue && availableClasses.some(c => 
+        c.class_name?.toLowerCase() === classValue.toLowerCase().trim() ||
+        numberToWord[c.class_id]?.toLowerCase() === classValue.toLowerCase().trim() ||
+        c.class_id === parseInt(classValue)
       )) {
+        isValidClass = true;
+      }
+      // Check if formData.class_id is already set and valid
+      else if (formData.class_id && availableClasses.some(c => c.class_id === parseInt(formData.class_id))) {
         isValidClass = true;
       }
       
       if (!isValidClass) {
-        newErrors.class_id = 'Please enter a valid class (1-12, First-Twelfth)';
+        newErrors.class_id = 'Please choose a valid class (1-12 or First-Twelfth)';
       }
       
       if (!formData.section) newErrors.section = 'Section is required';
@@ -290,34 +250,37 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     onClose();
   };
 
-  // This will ONLY be called when the "Add Student" button is clicked
   const handleAddStudent = async () => {
-    // Validate step 3
     if (!validateStep(3)) {
       return;
     }
     
     setLoading(true);
     try {
-      const url = '/api/students';
+      const url = `${API_BASE_URL}/students`;
       const method = editData ? 'PUT' : 'POST';
       
-      // Convert class input to proper ID
       let classIdValue = formData.class_id;
-      const classValue = classInput.toLowerCase().trim();
       
-      if (wordToNumber[classValue]) {
-        classIdValue = wordToNumber[classValue].toString();
-      } else if (!isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
-        classIdValue = parseInt(classValue).toString();
-      } else {
-        // Try to find matching class name
-        const matchedClass = availableClasses.find(c => 
-          c.class_name?.toLowerCase() === classValue ||
-          numberToWord[c.class_id]?.toLowerCase() === classValue
-        );
-        if (matchedClass) {
-          classIdValue = matchedClass.class_id.toString();
+      // If class_id is empty, try to get it from classInput
+      if (!classIdValue || classIdValue === '') {
+        const classValue = classInput.trim();
+        if (classValue) {
+          const lowerValue = classValue.toLowerCase().trim();
+          
+          if (wordToNumber[lowerValue]) {
+            classIdValue = wordToNumber[lowerValue].toString();
+          } else if (!isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
+            classIdValue = parseInt(classValue).toString();
+          } else {
+            const matchedClass = availableClasses.find(c => 
+              c.class_name?.toLowerCase() === lowerValue ||
+              numberToWord[c.class_id]?.toLowerCase() === lowerValue
+            );
+            if (matchedClass) {
+              classIdValue = matchedClass.class_id.toString();
+            }
+          }
         }
       }
       
@@ -325,6 +288,8 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         ...formData,
         class_id: classIdValue ? parseInt(classIdValue) : null
       };
+      
+      console.log('📝 Sending payload:', payload);
       
       const response = await fetch(url, {
         method: method,
@@ -367,10 +332,8 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   };
 
-  // Prevent default form submission
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    // Do nothing - the button handles submission
   };
 
   if (!isOpen) return null;
@@ -385,21 +348,18 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const borderColor = isDark ? 'border-white/10' : 'border-gray-200';
   const placeholderColor = isDark ? 'placeholder-white/60' : 'placeholder-gray-400';
 
-  // Get filtered class suggestions
   const getClassSuggestions = () => {
     const input = classInput.toLowerCase().trim();
     if (!input) return [];
     
     const suggestions = [];
     
-    // Add number suggestions
     for (let i = 1; i <= 12; i++) {
       if (i.toString().includes(input) || numberToWord[i].toLowerCase().includes(input)) {
         suggestions.push({ id: i, label: `${numberToWord[i]} (${i})` });
       }
     }
     
-    // Add existing class suggestions
     availableClasses.forEach(c => {
       if (c.class_name?.toLowerCase().includes(input) || 
           numberToWord[c.class_id]?.toLowerCase().includes(input)) {
@@ -471,7 +431,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
               </div>
             </div>
 
-            {/* Form - prevent default submission */}
+            {/* Form - Rest of the form stays the same */}
             <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto px-6 py-4">
               {/* Step 1: Student Information */}
               {step === 1 && (
@@ -494,7 +454,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="admission_no"
                         value={formData.admission_no}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.admission_no ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., S001"
                         readOnly
@@ -511,7 +470,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="full_name"
                         value={formData.full_name}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.full_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="Enter student name"
                       />
@@ -524,23 +482,51 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                       <input
                         type="text"
                         value={classInput}
-                        onChange={handleClassChange}
-                        onKeyDown={handleKeyDown}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setClassInput(value);
+                          setShowClassDropdown(true);
+                          const lowerValue = value.toLowerCase().trim();
+                          let classId = '';
+                          if (wordToNumber[lowerValue]) {
+                            classId = wordToNumber[lowerValue].toString();
+                          } else if (!isNaN(value) && value >= 1 && value <= 12) {
+                            classId = value;
+                          } else {
+                            const matchedClass = availableClasses.find(c => 
+                              c.class_name?.toLowerCase() === lowerValue ||
+                              numberToWord[c.class_id]?.toLowerCase() === lowerValue
+                            );
+                            if (matchedClass) {
+                              classId = matchedClass.class_id.toString();
+                            }
+                          }
+                          setFormData(prev => ({ ...prev, class_id: classId }));
+                          if (errors.class_id) {
+                            setErrors(prev => ({ ...prev, class_id: '' }));
+                          }
+                        }}
                         onFocus={() => setShowClassDropdown(true)}
                         onBlur={() => setTimeout(() => setShowClassDropdown(false), 200)}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.class_id ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 1, 5, First, Tenth"
                       />
                       {errors.class_id && <p className="mt-1 text-xs text-red-500">{errors.class_id}</p>}
-                      
-                      {/* Auto-suggest dropdown */}
                       {showClassDropdown && suggestions.length > 0 && (
                         <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-white/20 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {suggestions.map((sug) => (
                             <button
                               key={sug.id}
                               type="button"
-                              onClick={() => handleClassSelect(sug.id)}
+                              onClick={() => {
+                                const selectedClass = availableClasses.find(c => c.class_id === sug.id);
+                                setClassInput(selectedClass?.class_name || sug.id.toString());
+                                setFormData(prev => ({ ...prev, class_id: sug.id.toString() }));
+                                setShowClassDropdown(false);
+                                if (errors.class_id) {
+                                  setErrors(prev => ({ ...prev, class_id: '' }));
+                                }
+                              }}
                               className="w-full text-left px-4 py-2 text-white hover:bg-white/10 transition-colors"
                             >
                               {sug.label}
@@ -558,7 +544,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="section"
                         value={formData.section}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., A"
                       />
@@ -573,7 +558,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="roll_no"
                         value={formData.roll_no}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 01"
                       />
@@ -587,7 +571,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="student_phone"
                         value={formData.student_phone}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 9876543210"
                       />
@@ -601,7 +584,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="student_email"
                         value={formData.student_email}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="student@email.com"
                       />
@@ -636,7 +618,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                           name="parent1_name"
                           value={formData.parent1_name}
                           onChange={handleChange}
-                          onKeyDown={handleKeyDown}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="Enter parent 1 name"
                         />
@@ -651,7 +632,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                           name="parent1_phone"
                           value={formData.parent1_phone}
                           onChange={handleChange}
-                          onKeyDown={handleKeyDown}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_phone ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="e.g., 9876543210"
                         />
@@ -666,7 +646,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                           name="parent1_email"
                           value={formData.parent1_email}
                           onChange={handleChange}
-                          onKeyDown={handleKeyDown}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="parent1@email.com"
                         />
@@ -689,7 +668,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                           name="parent2_name"
                           value={formData.parent2_name}
                           onChange={handleChange}
-                          onKeyDown={handleKeyDown}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="Enter parent 2 name"
                         />
@@ -703,7 +681,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                           name="parent2_phone"
                           value={formData.parent2_phone}
                           onChange={handleChange}
-                          onKeyDown={handleKeyDown}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="e.g., 9876543210"
                         />
@@ -717,7 +694,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                           name="parent2_email"
                           value={formData.parent2_email}
                           onChange={handleChange}
-                          onKeyDown={handleKeyDown}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent2_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="parent2@email.com"
                         />
@@ -749,7 +725,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="guardian_name"
                         value={formData.guardian_name}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="Enter guardian name"
                       />
@@ -763,7 +738,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="guardian_phone"
                         value={formData.guardian_phone}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 9876543210"
                       />
@@ -777,7 +751,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         name="guardian_email"
                         value={formData.guardian_email}
                         onChange={handleChange}
-                        onKeyDown={handleKeyDown}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.guardian_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="guardian@email.com"
                       />
