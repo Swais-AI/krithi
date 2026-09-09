@@ -68,7 +68,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       if (response.ok) {
         const data = await response.json();
         setAvailableClasses(data);
-        // If editing, set the class input after classes are loaded
         if (editData && editData.class_id) {
           const foundClass = data.find(c => c.class_id === parseInt(editData.class_id));
           if (foundClass) {
@@ -109,7 +108,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   }, [isOpen, editData]);
 
-  // FIX: When editing, properly set the class input
   useEffect(() => {
     if (editData && availableClasses.length > 0) {
       const classId = editData.class_id || '';
@@ -166,43 +164,36 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       
       // FIX: Validate class properly
       let isValidClass = false;
-      let classValue = formData.class_id;
+      let classValue = classInput.trim() || formData.class_id;
       
-      // Check if class_id is already set (from dropdown or input)
-      if (classValue && classValue !== '') {
-        const numValue = parseInt(classValue);
-        // Check if it's a valid class from the available list
-        if (availableClasses.some(c => c.class_id === numValue)) {
-          isValidClass = true;
-        }
-        // Also check if it's a number 1-12
-        else if (!isNaN(numValue) && numValue >= 1 && numValue <= 12) {
-          isValidClass = true;
-        }
+      // If classValue is empty, check if formData.class_id has value
+      if (!classValue && formData.class_id) {
+        classValue = formData.class_id;
       }
       
-      // If class_id is empty, check classInput
-      if (!isValidClass && classInput && classInput.trim() !== '') {
-        const inputValue = classInput.toLowerCase().trim();
-        // Check if it's a number 1-12
-        if (!isNaN(inputValue) && parseInt(inputValue) >= 1 && parseInt(inputValue) <= 12) {
-          isValidClass = true;
-        }
-        // Check if it's a word (first, second, etc.)
-        else if (wordToNumber[inputValue]) {
-          isValidClass = true;
-        }
-        // Check if it matches existing class name
-        else if (availableClasses.some(c => 
-          c.class_name?.toLowerCase() === inputValue ||
-          numberToWord[c.class_id]?.toLowerCase() === inputValue
-        )) {
-          isValidClass = true;
-        }
+      // Check if it's a number 1-12
+      if (classValue && !isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
+        isValidClass = true;
+      }
+      // Check if it's a word (first, second, etc.)
+      else if (classValue && wordToNumber[classValue.toLowerCase().trim()]) {
+        isValidClass = true;
+      }
+      // Check if it matches existing class name
+      else if (classValue && availableClasses.some(c => 
+        c.class_name?.toLowerCase() === classValue.toLowerCase().trim() ||
+        numberToWord[c.class_id]?.toLowerCase() === classValue.toLowerCase().trim() ||
+        c.class_id === parseInt(classValue)
+      )) {
+        isValidClass = true;
+      }
+      // Check if formData.class_id is already set and valid
+      else if (formData.class_id && availableClasses.some(c => c.class_id === parseInt(formData.class_id))) {
+        isValidClass = true;
       }
       
       if (!isValidClass) {
-        newErrors.class_id = 'Please choose a class from the list';
+        newErrors.class_id = 'Please choose a valid class (1-12 or First-Twelfth)';
       }
       
       if (!formData.section) newErrors.section = 'Section is required';
@@ -269,24 +260,26 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       const url = `${API_BASE_URL}/students`;
       const method = editData ? 'PUT' : 'POST';
       
-      // FIX: Determine class_id from either formData or classInput
       let classIdValue = formData.class_id;
       
       // If class_id is empty, try to get it from classInput
       if (!classIdValue || classIdValue === '') {
-        const classValue = classInput.toLowerCase().trim();
-        
-        if (wordToNumber[classValue]) {
-          classIdValue = wordToNumber[classValue].toString();
-        } else if (!isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
-          classIdValue = parseInt(classValue).toString();
-        } else {
-          const matchedClass = availableClasses.find(c => 
-            c.class_name?.toLowerCase() === classValue ||
-            numberToWord[c.class_id]?.toLowerCase() === classValue
-          );
-          if (matchedClass) {
-            classIdValue = matchedClass.class_id.toString();
+        const classValue = classInput.trim();
+        if (classValue) {
+          const lowerValue = classValue.toLowerCase().trim();
+          
+          if (wordToNumber[lowerValue]) {
+            classIdValue = wordToNumber[lowerValue].toString();
+          } else if (!isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
+            classIdValue = parseInt(classValue).toString();
+          } else {
+            const matchedClass = availableClasses.find(c => 
+              c.class_name?.toLowerCase() === lowerValue ||
+              numberToWord[c.class_id]?.toLowerCase() === lowerValue
+            );
+            if (matchedClass) {
+              classIdValue = matchedClass.class_id.toString();
+            }
           }
         }
       }
@@ -438,7 +431,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
               </div>
             </div>
 
-            {/* Form */}
+            {/* Form - Rest of the form stays the same */}
             <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto px-6 py-4">
               {/* Step 1: Student Information */}
               {step === 1 && (
