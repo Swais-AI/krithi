@@ -93,7 +93,7 @@ export default function OthersPage() {
     if (!validateForm()) return;
     
     const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
-    const payload = {
+    const payload: any = {
       title: formData.title,
       message: formData.message,
       date: formData.date || new Date().toISOString().split('T')[0],
