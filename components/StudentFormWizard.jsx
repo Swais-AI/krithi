@@ -32,29 +32,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   });
   const [errors, setErrors] = useState({});
 
-  // Word to number mapping
-  const wordToNumber = {
-    'first': 1, 'one': 1,
-    'second': 2, 'two': 2,
-    'third': 3, 'three': 3,
-    'fourth': 4, 'four': 4,
-    'fifth': 5, 'five': 5,
-    'sixth': 6, 'six': 6,
-    'seventh': 7, 'seven': 7,
-    'eighth': 8, 'eight': 8,
-    'ninth': 9, 'nine': 9,
-    'tenth': 10, 'ten': 10,
-    'eleventh': 11, 'eleven': 11,
-    'twelfth': 12, 'twelve': 12
-  };
-
-  // Number to word mapping for display
-  const numberToWord = {
-    1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth',
-    5: 'Fifth', 6: 'Sixth', 7: 'Seventh', 8: 'Eighth',
-    9: 'Ninth', 10: 'Tenth', 11: 'Eleventh', 12: 'Twelfth'
-  };
-
   // Fetch available classes
   useEffect(() => {
     if (isOpen) {
@@ -67,11 +44,14 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       const response = await fetch(`${API_BASE_URL}/classes`);
       if (response.ok) {
         const data = await response.json();
+        console.log('📚 Available classes:', data);
         setAvailableClasses(data);
+        
+        // If editing, set the class display value
         if (editData && editData.class_id) {
           const foundClass = data.find(c => c.class_id === parseInt(editData.class_id));
           if (foundClass) {
-            setClassInput(foundClass.class_name || editData.class_id.toString());
+            setClassInput(foundClass.class_name);
           }
         }
       }
@@ -108,13 +88,9 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   }, [isOpen, editData]);
 
+  // Set form data when editing
   useEffect(() => {
-    if (editData && availableClasses.length > 0) {
-      const classId = editData.class_id || '';
-      const foundClass = availableClasses.find(c => c.class_id === parseInt(classId));
-      const className = foundClass?.class_name || classId;
-      
-      setClassInput(className);
+    if (editData) {
       setFormData({
         admission_no: editData.admission_no || '',
         full_name: editData.full_name || '',
@@ -134,7 +110,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         guardian_email: editData.guardian_email || '',
       });
     }
-  }, [editData, availableClasses]);
+  }, [editData]);
 
   const generateStudentId = async () => {
     try {
@@ -161,41 +137,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     if (stepNumber === 1) {
       if (!formData.admission_no) newErrors.admission_no = 'Student ID is required';
       if (!formData.full_name) newErrors.full_name = 'Student Name is required';
-      
-      // FIX: Validate class properly
-      let isValidClass = false;
-      let classValue = classInput.trim() || formData.class_id;
-      
-      // If classValue is empty, check if formData.class_id has value
-      if (!classValue && formData.class_id) {
-        classValue = formData.class_id;
-      }
-      
-      // Check if it's a number 1-12
-      if (classValue && !isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
-        isValidClass = true;
-      }
-      // Check if it's a word (first, second, etc.)
-      else if (classValue && wordToNumber[classValue.toLowerCase().trim()]) {
-        isValidClass = true;
-      }
-      // Check if it matches existing class name
-      else if (classValue && availableClasses.some(c => 
-        c.class_name?.toLowerCase() === classValue.toLowerCase().trim() ||
-        numberToWord[c.class_id]?.toLowerCase() === classValue.toLowerCase().trim() ||
-        c.class_id === parseInt(classValue)
-      )) {
-        isValidClass = true;
-      }
-      // Check if formData.class_id is already set and valid
-      else if (formData.class_id && availableClasses.some(c => c.class_id === parseInt(formData.class_id))) {
-        isValidClass = true;
-      }
-      
-      if (!isValidClass) {
-        newErrors.class_id = 'Please choose a valid class (1-12 or First-Twelfth)';
-      }
-      
+      if (!formData.class_id) newErrors.class_id = 'Please select a class from the list';
       if (!formData.section) newErrors.section = 'Section is required';
     } else if (stepNumber === 2) {
       if (!formData.parent1_name) newErrors.parent1_name = 'Parent 1 Name is required';
@@ -251,42 +193,31 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   };
 
   const handleAddStudent = async () => {
-    if (!validateStep(3)) {
-      return;
-    }
+    if (!validateStep(3)) return;
     
     setLoading(true);
     try {
       const url = `${API_BASE_URL}/students`;
       const method = editData ? 'PUT' : 'POST';
       
-      let classIdValue = formData.class_id;
-      
-      // If class_id is empty, try to get it from classInput
-      if (!classIdValue || classIdValue === '') {
-        const classValue = classInput.trim();
-        if (classValue) {
-          const lowerValue = classValue.toLowerCase().trim();
-          
-          if (wordToNumber[lowerValue]) {
-            classIdValue = wordToNumber[lowerValue].toString();
-          } else if (!isNaN(classValue) && parseInt(classValue) >= 1 && parseInt(classValue) <= 12) {
-            classIdValue = parseInt(classValue).toString();
-          } else {
-            const matchedClass = availableClasses.find(c => 
-              c.class_name?.toLowerCase() === lowerValue ||
-              numberToWord[c.class_id]?.toLowerCase() === lowerValue
-            );
-            if (matchedClass) {
-              classIdValue = matchedClass.class_id.toString();
-            }
-          }
-        }
-      }
-      
+      // ✅ class_id is already the correct DB id (from the dropdown)
       const payload = {
-        ...formData,
-        class_id: classIdValue ? parseInt(classIdValue) : null
+        admission_no: formData.admission_no,
+        full_name: formData.full_name,
+        class_id: formData.class_id ? parseInt(formData.class_id) : null,
+        section: formData.section,
+        roll_no: formData.roll_no || null,
+        parent1_name: formData.parent1_name,
+        parent1_phone: formData.parent1_phone || null,
+        parent1_email: formData.parent1_email || null,
+        parent2_name: formData.parent2_name || null,
+        parent2_phone: formData.parent2_phone || null,
+        parent2_email: formData.parent2_email || null,
+        student_phone: formData.student_phone || null,
+        student_email: formData.student_email || null,
+        guardian_name: formData.guardian_name || null,
+        guardian_phone: formData.guardian_phone || null,
+        guardian_email: formData.guardian_email || null
       };
       
       console.log('📝 Sending payload:', payload);
@@ -296,31 +227,12 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      
       const data = await response.json();
+      
       if (response.ok) {
         onSuccess();
-        setFormData({
-          admission_no: '',
-          full_name: '',
-          class_id: '',
-          section: '',
-          roll_no: '',
-          student_phone: '',
-          student_email: '',
-          parent1_name: '',
-          parent1_phone: '',
-          parent1_email: '',
-          parent2_name: '',
-          parent2_phone: '',
-          parent2_email: '',
-          guardian_name: '',
-          guardian_phone: '',
-          guardian_email: '',
-        });
-        setClassInput('');
-        setStep(1);
-        setErrors({});
-        onClose();
+        handleCancel();
       } else {
         alert(data.error || 'Failed to save student');
       }
@@ -347,33 +259,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const labelColor = isDark ? 'text-white/80' : 'text-gray-700';
   const borderColor = isDark ? 'border-white/10' : 'border-gray-200';
   const placeholderColor = isDark ? 'placeholder-white/60' : 'placeholder-gray-400';
-
-  const getClassSuggestions = () => {
-    const input = classInput.toLowerCase().trim();
-    if (!input) return [];
-    
-    const suggestions = [];
-    
-    for (let i = 1; i <= 12; i++) {
-      if (i.toString().includes(input) || numberToWord[i].toLowerCase().includes(input)) {
-        suggestions.push({ id: i, label: `${numberToWord[i]} (${i})` });
-      }
-    }
-    
-    availableClasses.forEach(c => {
-      if (c.class_name?.toLowerCase().includes(input) || 
-          numberToWord[c.class_id]?.toLowerCase().includes(input)) {
-        suggestions.push({ 
-          id: c.class_id, 
-          label: `${c.class_name || numberToWord[c.class_id] || 'Class'} (ID: ${c.class_id})` 
-        });
-      }
-    });
-    
-    return suggestions.slice(0, 10);
-  };
-
-  const suggestions = getClassSuggestions();
 
   return (
     <AnimatePresence>
@@ -402,10 +287,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                   Step {step} of 3
                 </p>
               </div>
-              <button
-                onClick={handleCancel}
-                className={`p-2 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition`}
-              >
+              <button onClick={handleCancel} className={`p-2 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition`}>
                 <X className={`w-5 h-5 ${isDark ? 'text-white/60' : 'text-gray-500'}`} />
               </button>
             </div>
@@ -413,177 +295,82 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
             {/* Progress Bar */}
             <div className="px-6 pt-4">
               <div className="flex items-center justify-between mb-2">
-                <span className={`text-xs font-medium ${step >= 1 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>
-                  Student Info
-                </span>
-                <span className={`text-xs font-medium ${step >= 2 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>
-                  Parents Info
-                </span>
-                <span className={`text-xs font-medium ${step >= 3 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>
-                  Guardian Info
-                </span>
+                <span className={`text-xs font-medium ${step >= 1 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Student Info</span>
+                <span className={`text-xs font-medium ${step >= 2 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Parents Info</span>
+                <span className={`text-xs font-medium ${step >= 3 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Guardian Info</span>
               </div>
               <div className={`w-full h-2 ${isDark ? 'bg-white/10' : 'bg-gray-200'} rounded-full`}>
-                <div
-                  className="h-2 transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                <div className="h-2 transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
                   style={{ width: `${((step - 1) / 2) * 100}%` }}
                 />
               </div>
             </div>
 
-            {/* Form - Rest of the form stays the same */}
             <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto px-6 py-4">
               {/* Step 1: Student Information */}
               {step === 1 && (
-                <motion.div
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -20, opacity: 0 }}
-                  className="space-y-4"
-                >
-                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
-                    Student Information
-                  </h4>
+                <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
+                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Student Information</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Admission Number * (S=Student)
-                      </label>
-                      <input
-                        type="text"
-                        name="admission_no"
-                        value={formData.admission_no}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Admission Number * (S=Student)</label>
+                      <input type="text" name="admission_no" value={formData.admission_no} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.admission_no ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., S001"
-                        readOnly
-                        disabled={!!editData}
+                        placeholder="e.g., S001" readOnly disabled={!!editData}
                       />
                       {errors.admission_no && <p className="mt-1 text-xs text-red-500">{errors.admission_no}</p>}
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Student Name *
-                      </label>
-                      <input
-                        type="text"
-                        name="full_name"
-                        value={formData.full_name}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Student Name *</label>
+                      <input type="text" name="full_name" value={formData.full_name} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.full_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="Enter student name"
                       />
                       {errors.full_name && <p className="mt-1 text-xs text-red-500">{errors.full_name}</p>}
                     </div>
                     <div className="relative">
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Class * <span className="text-xs text-white/40">(Enter 1-12 or First-Twelfth)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={classInput}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setClassInput(value);
-                          setShowClassDropdown(true);
-                          const lowerValue = value.toLowerCase().trim();
-                          let classId = '';
-                          if (wordToNumber[lowerValue]) {
-                            classId = wordToNumber[lowerValue].toString();
-                          } else if (!isNaN(value) && value >= 1 && value <= 12) {
-                            classId = value;
-                          } else {
-                            const matchedClass = availableClasses.find(c => 
-                              c.class_name?.toLowerCase() === lowerValue ||
-                              numberToWord[c.class_id]?.toLowerCase() === lowerValue
-                            );
-                            if (matchedClass) {
-                              classId = matchedClass.class_id.toString();
-                            }
-                          }
-                          setFormData(prev => ({ ...prev, class_id: classId }));
-                          if (errors.class_id) {
-                            setErrors(prev => ({ ...prev, class_id: '' }));
-                          }
-                        }}
-                        onFocus={() => setShowClassDropdown(true)}
-                        onBlur={() => setTimeout(() => setShowClassDropdown(false), 200)}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.class_id ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., 1, 5, First, Tenth"
-                      />
+                      <label className={`block text-sm font-medium ${labelColor}`}>Class *</label>
+                      {/* ✅ FIX: Dropdown with class_id as value, class_name as label */}
+                      <select
+                        name="class_id"
+                        value={formData.class_id}
+                        onChange={handleChange}
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.class_id ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500`}
+                      >
+                        <option value="">Select Class</option>
+                        {availableClasses.map((cls) => (
+                          <option key={cls.class_id} value={cls.class_id}>
+                            {cls.class_name} {cls.section_name ? `- ${cls.section_name}` : ''}
+                          </option>
+                        ))}
+                      </select>
                       {errors.class_id && <p className="mt-1 text-xs text-red-500">{errors.class_id}</p>}
-                      {showClassDropdown && suggestions.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-white/20 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                          {suggestions.map((sug) => (
-                            <button
-                              key={sug.id}
-                              type="button"
-                              onClick={() => {
-                                const selectedClass = availableClasses.find(c => c.class_id === sug.id);
-                                setClassInput(selectedClass?.class_name || sug.id.toString());
-                                setFormData(prev => ({ ...prev, class_id: sug.id.toString() }));
-                                setShowClassDropdown(false);
-                                if (errors.class_id) {
-                                  setErrors(prev => ({ ...prev, class_id: '' }));
-                                }
-                              }}
-                              className="w-full text-left px-4 py-2 text-white hover:bg-white/10 transition-colors"
-                            >
-                              {sug.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Section *
-                      </label>
-                      <input
-                        type="text"
-                        name="section"
-                        value={formData.section}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Section *</label>
+                      <input type="text" name="section" value={formData.section} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., A"
                       />
                       {errors.section && <p className="mt-1 text-xs text-red-500">{errors.section}</p>}
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Roll Number
-                      </label>
-                      <input
-                        type="text"
-                        name="roll_no"
-                        value={formData.roll_no}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Roll Number</label>
+                      <input type="text" name="roll_no" value={formData.roll_no} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 01"
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Student Phone
-                      </label>
-                      <input
-                        type="tel"
-                        name="student_phone"
-                        value={formData.student_phone}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Student Phone</label>
+                      <input type="tel" name="student_phone" value={formData.student_phone} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 9876543210"
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Student Email
-                      </label>
-                      <input
-                        type="email"
-                        name="student_email"
-                        value={formData.student_email}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Student Email</label>
+                      <input type="email" name="student_email" value={formData.student_email} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="student@email.com"
                       />
@@ -594,58 +381,30 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
 
               {/* Step 2: Parents Information */}
               {step === 2 && (
-                <motion.div
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -20, opacity: 0 }}
-                  className="space-y-6"
-                >
-                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
-                    Parents Information
-                  </h4>
-
+                <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-6">
+                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Parents Information</h4>
                   <div className={`p-4 ${isDark ? 'bg-white/5' : 'bg-gray-50'} rounded-lg border ${borderColor}`}>
-                    <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>
-                      Parent 1
-                    </h5>
+                    <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>Parent 1</h5>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className={`block text-sm font-medium ${labelColor}`}>
-                          Name *
-                        </label>
-                        <input
-                          type="text"
-                          name="parent1_name"
-                          value={formData.parent1_name}
-                          onChange={handleChange}
+                        <label className={`block text-sm font-medium ${labelColor}`}>Name *</label>
+                        <input type="text" name="parent1_name" value={formData.parent1_name} onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="Enter parent 1 name"
                         />
                         {errors.parent1_name && <p className="mt-1 text-xs text-red-500">{errors.parent1_name}</p>}
                       </div>
                       <div>
-                        <label className={`block text-sm font-medium ${labelColor}`}>
-                          Phone *
-                        </label>
-                        <input
-                          type="tel"
-                          name="parent1_phone"
-                          value={formData.parent1_phone}
-                          onChange={handleChange}
+                        <label className={`block text-sm font-medium ${labelColor}`}>Phone *</label>
+                        <input type="tel" name="parent1_phone" value={formData.parent1_phone} onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_phone ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="e.g., 9876543210"
                         />
                         {errors.parent1_phone && <p className="mt-1 text-xs text-red-500">{errors.parent1_phone}</p>}
                       </div>
                       <div className="col-span-2">
-                        <label className={`block text-sm font-medium ${labelColor}`}>
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          name="parent1_email"
-                          value={formData.parent1_email}
-                          onChange={handleChange}
+                        <label className={`block text-sm font-medium ${labelColor}`}>Email</label>
+                        <input type="email" name="parent1_email" value={formData.parent1_email} onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="parent1@email.com"
                         />
@@ -653,47 +412,26 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                       </div>
                     </div>
                   </div>
-
                   <div className={`p-4 ${isDark ? 'bg-white/5' : 'bg-gray-50'} rounded-lg border ${borderColor}`}>
-                    <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>
-                      Parent 2 <span className="text-xs text-white/40">(Optional)</span>
-                    </h5>
+                    <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>Parent 2 <span className="text-xs text-white/40">(Optional)</span></h5>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className={`block text-sm font-medium ${labelColor}`}>
-                          Name
-                        </label>
-                        <input
-                          type="text"
-                          name="parent2_name"
-                          value={formData.parent2_name}
-                          onChange={handleChange}
+                        <label className={`block text-sm font-medium ${labelColor}`}>Name</label>
+                        <input type="text" name="parent2_name" value={formData.parent2_name} onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="Enter parent 2 name"
                         />
                       </div>
                       <div>
-                        <label className={`block text-sm font-medium ${labelColor}`}>
-                          Phone
-                        </label>
-                        <input
-                          type="tel"
-                          name="parent2_phone"
-                          value={formData.parent2_phone}
-                          onChange={handleChange}
+                        <label className={`block text-sm font-medium ${labelColor}`}>Phone</label>
+                        <input type="tel" name="parent2_phone" value={formData.parent2_phone} onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="e.g., 9876543210"
                         />
                       </div>
                       <div className="col-span-2">
-                        <label className={`block text-sm font-medium ${labelColor}`}>
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          name="parent2_email"
-                          value={formData.parent2_email}
-                          onChange={handleChange}
+                        <label className={`block text-sm font-medium ${labelColor}`}>Email</label>
+                        <input type="email" name="parent2_email" value={formData.parent2_email} onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent2_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="parent2@email.com"
                         />
@@ -706,51 +444,26 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
 
               {/* Step 3: Guardian Information */}
               {step === 3 && (
-                <motion.div
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -20, opacity: 0 }}
-                  className="space-y-4"
-                >
-                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
-                    Guardian Information <span className="text-xs text-white/40">(Optional)</span>
-                  </h4>
+                <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
+                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Guardian Information <span className="text-xs text-white/40">(Optional)</span></h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Guardian Name
-                      </label>
-                      <input
-                        type="text"
-                        name="guardian_name"
-                        value={formData.guardian_name}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Guardian Name</label>
+                      <input type="text" name="guardian_name" value={formData.guardian_name} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="Enter guardian name"
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Guardian Phone
-                      </label>
-                      <input
-                        type="tel"
-                        name="guardian_phone"
-                        value={formData.guardian_phone}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Guardian Phone</label>
+                      <input type="tel" name="guardian_phone" value={formData.guardian_phone} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 9876543210"
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className={`block text-sm font-medium ${labelColor}`}>
-                        Guardian Email
-                      </label>
-                      <input
-                        type="email"
-                        name="guardian_email"
-                        value={formData.guardian_email}
-                        onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Guardian Email</label>
+                      <input type="email" name="guardian_email" value={formData.guardian_email} onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.guardian_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="guardian@email.com"
                       />
@@ -764,18 +477,13 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
               <div className="flex justify-between mt-6 pt-4 border-t border-white/10">
                 <div className="flex gap-3">
                   {step > 1 && (
-                    <button
-                      type="button"
-                      onClick={prevStep}
+                    <button type="button" onClick={prevStep}
                       className="flex items-center gap-2 px-6 py-2.5 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition"
                     >
-                      <ChevronLeft className="w-4 h-4" />
-                      Back
+                      <ChevronLeft className="w-4 h-4" /> Back
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleCancel}
+                  <button type="button" onClick={handleCancel}
                     className="px-6 py-2.5 bg-red-500/20 text-red-400 rounded-xl font-semibold hover:bg-red-500/30 transition"
                   >
                     Cancel
@@ -783,19 +491,13 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </div>
                 <div className="flex gap-3">
                   {step < 3 ? (
-                    <button
-                      type="button"
-                      onClick={nextStep}
+                    <button type="button" onClick={nextStep}
                       className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
                     >
-                      Next
-                      <ChevronRight className="w-4 h-4" />
+                      Next <ChevronRight className="w-4 h-4" />
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={handleAddStudent}
-                      disabled={loading}
+                    <button type="button" onClick={handleAddStudent} disabled={loading}
                       className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50"
                     >
                       {loading ? (editData ? 'Updating...' : 'Adding...') : (editData ? 'Update Student' : 'Add Student')}
