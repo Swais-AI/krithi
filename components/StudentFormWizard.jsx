@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { isValidName, isValidPhone, normalizePhone, isValidEmail } from '../lib/validators';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -10,8 +11,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [availableClasses, setAvailableClasses] = useState([]);
-  const [classInput, setClassInput] = useState('');
-  const [showClassDropdown, setShowClassDropdown] = useState(false);
   const [formData, setFormData] = useState({
     admission_no: '',
     full_name: '',
@@ -32,11 +31,9 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   });
   const [errors, setErrors] = useState({});
 
-  // Fetch available classes
+  // Fetch classes
   useEffect(() => {
-    if (isOpen) {
-      fetchAvailableClasses();
-    }
+    if (isOpen) fetchAvailableClasses();
   }, [isOpen]);
 
   const fetchAvailableClasses = async () => {
@@ -44,15 +41,10 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       const response = await fetch(`${API_BASE_URL}/classes`);
       if (response.ok) {
         const data = await response.json();
-        console.log('📚 Available classes:', data);
-        setAvailableClasses(data);
-        
-        // If editing, set the class display value
+        setAvailableClasses(Array.isArray(data) ? data : []);
         if (editData && editData.class_id) {
-          const foundClass = data.find(c => c.class_id === parseInt(editData.class_id));
-          if (foundClass) {
-            setClassInput(foundClass.class_name);
-          }
+          const found = data.find((c) => String(c.class_id) === String(editData.class_id));
+          // We don't rely on classInput anymore; select handles display
         }
       }
     } catch (error) {
@@ -60,7 +52,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   };
 
-  // Reset form when modal opens
+  // Reset or hydrate form
   useEffect(() => {
     if (isOpen && !editData) {
       setFormData({
@@ -81,14 +73,12 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         guardian_phone: '',
         guardian_email: '',
       });
-      setClassInput('');
       setStep(1);
       setErrors({});
       generateStudentId();
     }
   }, [isOpen, editData]);
 
-  // Set form data when editing
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -116,9 +106,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     try {
       const response = await fetch(`${API_BASE_URL}/generate-id?type=student`);
       const data = await response.json();
-      if (data.id) {
-        setFormData(prev => ({ ...prev, admission_no: data.id }));
-      }
+      if (data.id) setFormData((prev) => ({ ...prev, admission_no: data.id }));
     } catch (error) {
       console.error('Error generating ID:', error);
     }
@@ -126,46 +114,68 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+    // Live-strip phone fields to digits + optional +
+    let v = value;
+    if (name.includes('phone')) {
+      v = value.replace(/[^\d+]/g, '').slice(0, 15);
     }
+    setFormData((prev) => ({ ...prev, [name]: v }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
   const validateStep = (stepNumber) => {
-    const newErrors = {};
+    const e = {};
+
     if (stepNumber === 1) {
-      if (!formData.admission_no) newErrors.admission_no = 'Student ID is required';
-      if (!formData.full_name) newErrors.full_name = 'Student Name is required';
-      if (!formData.class_id) newErrors.class_id = 'Please select a class from the list';
-      if (!formData.section) newErrors.section = 'Section is required';
-    } else if (stepNumber === 2) {
-      if (!formData.parent1_name) newErrors.parent1_name = 'Parent 1 Name is required';
-      if (!formData.parent1_phone) newErrors.parent1_phone = 'Parent 1 Phone is required';
-      if (formData.parent1_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.parent1_email)) {
-        newErrors.parent1_email = 'Invalid email format';
-      }
-      if (formData.parent2_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.parent2_email)) {
-        newErrors.parent2_email = 'Invalid email format';
-      }
-    } else if (stepNumber === 3) {
-      if (formData.guardian_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.guardian_email)) {
-        newErrors.guardian_email = 'Invalid email format';
-      }
+      if (!formData.admission_no) e.admission_no = 'Student ID is required';
+      if (!formData.full_name) e.full_name = 'Student Name is required';
+      else if (!isValidName(formData.full_name))
+        e.full_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
+      if (!formData.class_id) e.class_id = 'Please select a class';
+      if (!formData.section) e.section = 'Section is required';
+      if (formData.student_email && !isValidEmail(formData.student_email))
+        e.student_email = 'Please enter a valid email address';
+      if (formData.student_phone && !isValidPhone(formData.student_phone))
+        e.student_phone = 'Enter a valid 10-digit mobile number';
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+
+    if (stepNumber === 2) {
+      if (!formData.parent1_name) e.parent1_name = 'Parent 1 Name is required';
+      else if (!isValidName(formData.parent1_name))
+        e.parent1_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
+
+      if (!formData.parent1_phone) e.parent1_phone = 'Parent 1 Phone is required';
+      else if (!isValidPhone(formData.parent1_phone))
+        e.parent1_phone = 'Enter a valid 10-digit mobile number';
+
+      if (formData.parent1_email && !isValidEmail(formData.parent1_email))
+        e.parent1_email = 'Please enter a valid email address';
+
+      if (formData.parent2_name && !isValidName(formData.parent2_name))
+        e.parent2_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
+      if (formData.parent2_phone && !isValidPhone(formData.parent2_phone))
+        e.parent2_phone = 'Enter a valid 10-digit mobile number';
+      if (formData.parent2_email && !isValidEmail(formData.parent2_email))
+        e.parent2_email = 'Please enter a valid email address';
+    }
+
+    if (stepNumber === 3) {
+      if (formData.guardian_name && !isValidName(formData.guardian_name))
+        e.guardian_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
+      if (formData.guardian_phone && !isValidPhone(formData.guardian_phone))
+        e.guardian_phone = 'Enter a valid 10-digit mobile number';
+      if (formData.guardian_email && !isValidEmail(formData.guardian_email))
+        e.guardian_email = 'Please enter a valid email address';
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const nextStep = () => {
-    if (validateStep(step)) {
-      setStep(step + 1);
-    }
+    if (validateStep(step)) setStep(step + 1);
   };
-
-  const prevStep = () => {
-    setStep(step - 1);
-  };
+  const prevStep = () => setStep(step - 1);
 
   const handleCancel = () => {
     setFormData({
@@ -186,50 +196,43 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       guardian_phone: '',
       guardian_email: '',
     });
-    setClassInput('');
     setStep(1);
     setErrors({});
     onClose();
   };
 
-  const handleAddStudent = async () => {
+  const handleSubmit = async () => {
     if (!validateStep(3)) return;
-    
     setLoading(true);
     try {
       const url = `${API_BASE_URL}/students`;
       const method = editData ? 'PUT' : 'POST';
-      
-      // ✅ class_id is already the correct DB id (from the dropdown)
+
       const payload = {
         admission_no: formData.admission_no,
-        full_name: formData.full_name,
+        full_name: formData.full_name.trim(),
         class_id: formData.class_id ? parseInt(formData.class_id) : null,
         section: formData.section,
         roll_no: formData.roll_no || null,
-        parent1_name: formData.parent1_name,
-        parent1_phone: formData.parent1_phone || null,
+        parent1_name: formData.parent1_name?.trim() || null,
+        parent1_phone: formData.parent1_phone ? normalizePhone(formData.parent1_phone) : null,
         parent1_email: formData.parent1_email || null,
-        parent2_name: formData.parent2_name || null,
-        parent2_phone: formData.parent2_phone || null,
+        parent2_name: formData.parent2_name?.trim() || null,
+        parent2_phone: formData.parent2_phone ? normalizePhone(formData.parent2_phone) : null,
         parent2_email: formData.parent2_email || null,
-        student_phone: formData.student_phone || null,
+        student_phone: formData.student_phone ? normalizePhone(formData.student_phone) : null,
         student_email: formData.student_email || null,
-        guardian_name: formData.guardian_name || null,
-        guardian_phone: formData.guardian_phone || null,
-        guardian_email: formData.guardian_email || null
+        guardian_name: formData.guardian_name?.trim() || null,
+        guardian_phone: formData.guardian_phone ? normalizePhone(formData.guardian_phone) : null,
+        guardian_email: formData.guardian_email || null,
       };
-      
-      console.log('📝 Sending payload:', payload);
-      
+
       const response = await fetch(url, {
-        method: method,
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
       const data = await response.json();
-      
       if (response.ok) {
         onSuccess();
         handleCancel();
@@ -242,10 +245,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
   };
 
   if (!isOpen) return null;
@@ -283,16 +282,14 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 <h3 className={`text-xl font-semibold ${textColor}`}>
                   {editData ? 'Edit Student' : 'Add New Student'}
                 </h3>
-                <p className={`text-sm ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
-                  Step {step} of 3
-                </p>
+                <p className={`text-sm ${isDark ? 'text-white/60' : 'text-gray-500'}`}>Step {step} of 3</p>
               </div>
               <button onClick={handleCancel} className={`p-2 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition`}>
                 <X className={`w-5 h-5 ${isDark ? 'text-white/60' : 'text-gray-500'}`} />
               </button>
             </div>
 
-            {/* Progress Bar */}
+            {/* Progress */}
             <div className="px-6 pt-4">
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-xs font-medium ${step >= 1 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Student Info</span>
@@ -300,37 +297,48 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 <span className={`text-xs font-medium ${step >= 3 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Guardian Info</span>
               </div>
               <div className={`w-full h-2 ${isDark ? 'bg-white/10' : 'bg-gray-200'} rounded-full`}>
-                <div className="h-2 transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                <div
+                  className="h-2 transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
                   style={{ width: `${((step - 1) / 2) * 100}%` }}
                 />
               </div>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto px-6 py-4">
-              {/* Step 1: Student Information */}
+            {/* Form */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {/* STEP 1 */}
               {step === 1 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Student Information</h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className={`block text-sm font-medium ${labelColor}`}>Admission Number * (S=Student)</label>
-                      <input type="text" name="admission_no" value={formData.admission_no} onChange={handleChange}
+                      <label className={`block text-sm font-medium ${labelColor}`}>Admission Number *</label>
+                      <input
+                        type="text"
+                        name="admission_no"
+                        value={formData.admission_no}
+                        onChange={handleChange}
+                        readOnly
+                        disabled={!!editData}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.admission_no ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., S001" readOnly disabled={!!editData}
+                        placeholder="e.g., S001"
                       />
                       {errors.admission_no && <p className="mt-1 text-xs text-red-500">{errors.admission_no}</p>}
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Student Name *</label>
-                      <input type="text" name="full_name" value={formData.full_name} onChange={handleChange}
+                      <input
+                        type="text"
+                        name="full_name"
+                        value={formData.full_name}
+                        onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.full_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="Enter student name"
+                        placeholder="e.g., John Doe"
                       />
                       {errors.full_name && <p className="mt-1 text-xs text-red-500">{errors.full_name}</p>}
                     </div>
-                    <div className="relative">
+                    <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Class *</label>
-                      {/* ✅ FIX: Dropdown with class_id as value, class_name as label */}
                       <select
                         name="class_id"
                         value={formData.class_id}
@@ -340,7 +348,8 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         <option value="">Select Class</option>
                         {availableClasses.map((cls) => (
                           <option key={cls.class_id} value={cls.class_id}>
-                            {cls.class_name} {cls.section_name ? `- ${cls.section_name}` : ''}
+                            {cls.class_name}
+                            {cls.section_name ? ` - ${cls.section_name}` : ''}
                           </option>
                         ))}
                       </select>
@@ -348,7 +357,11 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Section *</label>
-                      <input type="text" name="section" value={formData.section} onChange={handleChange}
+                      <input
+                        type="text"
+                        name="section"
+                        value={formData.section}
+                        onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., A"
                       />
@@ -356,82 +369,129 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Roll Number</label>
-                      <input type="text" name="roll_no" value={formData.roll_no} onChange={handleChange}
+                      <input
+                        type="text"
+                        name="roll_no"
+                        value={formData.roll_no}
+                        onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="e.g., 01"
                       />
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Student Phone</label>
-                      <input type="tel" name="student_phone" value={formData.student_phone} onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., 9876543210"
+                      <input
+                        type="tel"
+                        name="student_phone"
+                        value={formData.student_phone}
+                        onChange={handleChange}
+                        maxLength={10}
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.student_phone ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                        placeholder="10-digit mobile"
                       />
+                      {errors.student_phone && <p className="mt-1 text-xs text-red-500">{errors.student_phone}</p>}
                     </div>
-                    <div className="col-span-2">
+                    <div className="md:col-span-2">
                       <label className={`block text-sm font-medium ${labelColor}`}>Student Email</label>
-                      <input type="email" name="student_email" value={formData.student_email} onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                      <input
+                        type="email"
+                        name="student_email"
+                        value={formData.student_email}
+                        onChange={handleChange}
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.student_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="student@email.com"
                       />
+                      {errors.student_email && <p className="mt-1 text-xs text-red-500">{errors.student_email}</p>}
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* Step 2: Parents Information */}
+              {/* STEP 2 */}
               {step === 2 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-6">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Parents Information</h4>
+
                   <div className={`p-4 ${isDark ? 'bg-white/5' : 'bg-gray-50'} rounded-lg border ${borderColor}`}>
                     <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>Parent 1</h5>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={`block text-sm font-medium ${labelColor}`}>Name *</label>
-                        <input type="text" name="parent1_name" value={formData.parent1_name} onChange={handleChange}
+                        <input
+                          type="text"
+                          name="parent1_name"
+                          value={formData.parent1_name}
+                          onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                          placeholder="Enter parent 1 name"
+                          placeholder="e.g., John Doe"
                         />
                         {errors.parent1_name && <p className="mt-1 text-xs text-red-500">{errors.parent1_name}</p>}
                       </div>
                       <div>
                         <label className={`block text-sm font-medium ${labelColor}`}>Phone *</label>
-                        <input type="tel" name="parent1_phone" value={formData.parent1_phone} onChange={handleChange}
+                        <input
+                          type="tel"
+                          name="parent1_phone"
+                          value={formData.parent1_phone}
+                          onChange={handleChange}
+                          maxLength={10}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_phone ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                          placeholder="e.g., 9876543210"
+                          placeholder="10-digit mobile"
                         />
                         {errors.parent1_phone && <p className="mt-1 text-xs text-red-500">{errors.parent1_phone}</p>}
                       </div>
-                      <div className="col-span-2">
+                      <div className="md:col-span-2">
                         <label className={`block text-sm font-medium ${labelColor}`}>Email</label>
-                        <input type="email" name="parent1_email" value={formData.parent1_email} onChange={handleChange}
+                        <input
+                          type="email"
+                          name="parent1_email"
+                          value={formData.parent1_email}
+                          onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                          placeholder="parent1@email.com"
+                          placeholder="parent@email.com"
                         />
                         {errors.parent1_email && <p className="mt-1 text-xs text-red-500">{errors.parent1_email}</p>}
                       </div>
                     </div>
                   </div>
+
                   <div className={`p-4 ${isDark ? 'bg-white/5' : 'bg-gray-50'} rounded-lg border ${borderColor}`}>
-                    <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>Parent 2 <span className="text-xs text-white/40">(Optional)</span></h5>
-                    <div className="grid grid-cols-2 gap-4">
+                    <h5 className={`text-sm font-medium ${isDark ? 'text-white/60' : 'text-gray-600'} mb-3`}>
+                      Parent 2 <span className="text-xs text-white/40">(Optional)</span>
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={`block text-sm font-medium ${labelColor}`}>Name</label>
-                        <input type="text" name="parent2_name" value={formData.parent2_name} onChange={handleChange}
-                          className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                          placeholder="Enter parent 2 name"
+                        <input
+                          type="text"
+                          name="parent2_name"
+                          value={formData.parent2_name}
+                          onChange={handleChange}
+                          className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent2_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                          placeholder="e.g., Jane Doe"
                         />
+                        {errors.parent2_name && <p className="mt-1 text-xs text-red-500">{errors.parent2_name}</p>}
                       </div>
                       <div>
                         <label className={`block text-sm font-medium ${labelColor}`}>Phone</label>
-                        <input type="tel" name="parent2_phone" value={formData.parent2_phone} onChange={handleChange}
-                          className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                          placeholder="e.g., 9876543210"
+                        <input
+                          type="tel"
+                          name="parent2_phone"
+                          value={formData.parent2_phone}
+                          onChange={handleChange}
+                          maxLength={10}
+                          className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent2_phone ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                          placeholder="10-digit mobile"
                         />
+                        {errors.parent2_phone && <p className="mt-1 text-xs text-red-500">{errors.parent2_phone}</p>}
                       </div>
-                      <div className="col-span-2">
+                      <div className="md:col-span-2">
                         <label className={`block text-sm font-medium ${labelColor}`}>Email</label>
-                        <input type="email" name="parent2_email" value={formData.parent2_email} onChange={handleChange}
+                        <input
+                          type="email"
+                          name="parent2_email"
+                          value={formData.parent2_email}
+                          onChange={handleChange}
                           className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent2_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                           placeholder="parent2@email.com"
                         />
@@ -442,28 +502,45 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* Step 3: Guardian Information */}
+              {/* STEP 3 */}
               {step === 3 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
-                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Guardian Information <span className="text-xs text-white/40">(Optional)</span></h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
+                    Guardian Information <span className="text-xs text-white/40">(Optional)</span>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Guardian Name</label>
-                      <input type="text" name="guardian_name" value={formData.guardian_name} onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="Enter guardian name"
+                      <input
+                        type="text"
+                        name="guardian_name"
+                        value={formData.guardian_name}
+                        onChange={handleChange}
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.guardian_name ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                        placeholder="e.g., Guardian Name"
                       />
+                      {errors.guardian_name && <p className="mt-1 text-xs text-red-500">{errors.guardian_name}</p>}
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Guardian Phone</label>
-                      <input type="tel" name="guardian_phone" value={formData.guardian_phone} onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., 9876543210"
+                      <input
+                        type="tel"
+                        name="guardian_phone"
+                        value={formData.guardian_phone}
+                        onChange={handleChange}
+                        maxLength={10}
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.guardian_phone ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                        placeholder="10-digit mobile"
                       />
+                      {errors.guardian_phone && <p className="mt-1 text-xs text-red-500">{errors.guardian_phone}</p>}
                     </div>
-                    <div className="col-span-2">
+                    <div className="md:col-span-2">
                       <label className={`block text-sm font-medium ${labelColor}`}>Guardian Email</label>
-                      <input type="email" name="guardian_email" value={formData.guardian_email} onChange={handleChange}
+                      <input
+                        type="email"
+                        name="guardian_email"
+                        value={formData.guardian_email}
+                        onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.guardian_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
                         placeholder="guardian@email.com"
                       />
@@ -473,39 +550,31 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* Navigation Buttons */}
-              <div className="flex justify-between mt-6 pt-4 border-t border-white/10">
+              {/* Footer */}
+              <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 pt-4 border-t border-white/10">
                 <div className="flex gap-3">
                   {step > 1 && (
-                    <button type="button" onClick={prevStep}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition"
-                    >
+                    <button type="button" onClick={prevStep} className="flex items-center gap-2 px-6 py-2.5 bg-white/10 text-white rounded-xl font-semibold hover:bg-white/20 transition">
                       <ChevronLeft className="w-4 h-4" /> Back
                     </button>
                   )}
-                  <button type="button" onClick={handleCancel}
-                    className="px-6 py-2.5 bg-red-500/20 text-red-400 rounded-xl font-semibold hover:bg-red-500/30 transition"
-                  >
+                  <button type="button" onClick={handleCancel} className="px-6 py-2.5 bg-red-500/20 text-red-400 rounded-xl font-semibold hover:bg-red-500/30 transition">
                     Cancel
                   </button>
                 </div>
                 <div className="flex gap-3">
                   {step < 3 ? (
-                    <button type="button" onClick={nextStep}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
-                    >
+                    <button type="button" onClick={nextStep} className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition">
                       Next <ChevronRight className="w-4 h-4" />
                     </button>
                   ) : (
-                    <button type="button" onClick={handleAddStudent} disabled={loading}
-                      className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50"
-                    >
-                      {loading ? (editData ? 'Updating...' : 'Adding...') : (editData ? 'Update Student' : 'Add Student')}
+                    <button type="button" onClick={handleSubmit} disabled={loading} className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50">
+                      {loading ? (editData ? 'Updating...' : 'Adding...') : editData ? 'Update Student' : 'Add Student'}
                     </button>
                   )}
                 </div>
               </div>
-            </form>
+            </div>
           </motion.div>
         </motion.div>
       )}
