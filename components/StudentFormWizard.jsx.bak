@@ -345,9 +345,9 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.class_id ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500`}
                       >
-                        <option value="" style={{ color: "#111827", background: "#ffffff" }}>Select Class</option>
+                        <option value="">Select Class</option>
                         {availableClasses.map((cls) => (
-                          <option key={cls.class_id} value={cls.class_id} style={{ color: "#111827", background: "#ffffff" }}>
+                          <option key={cls.class_id} value={cls.class_id}>
                             {cls.class_name}
                             {cls.section_name ? ` - ${cls.section_name}` : ''}
                           </option>

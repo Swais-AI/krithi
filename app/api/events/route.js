@@ -18,65 +18,53 @@ export async function GET() {
     `;
     return NextResponse.json(events);
   } catch (error) {
-    console.error('Database error:', error);
-    // If table doesn't exist, return empty array
-    if (error.message && error.message.includes('relation')) {
+    // Table may not exist yet — return empty array so UI doesn't break
+    if (error.message && error.message.includes('does not exist')) {
+      console.warn('sgs_events table does not exist yet');
       return NextResponse.json([], { status: 200 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Database error:', error);
+    return NextResponse.json([], { status: 200 });
   }
 }
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { title, message, date, type, applicable_class } = body;
+    const { id, title, message, date, type, applicable_class } = body;
 
     if (!title || !message) {
-      return NextResponse.json(
-        { error: 'Title and message are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Title and message are required' }, { status: 400 });
     }
 
-    // Check if event_type column exists
-    const columnsCheck = await sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'sgs_events'
-      AND column_name = 'event_type'
+    if (id) {
+      const result = await sql`
+        UPDATE sgs_events
+        SET
+          event_title = ${title},
+          event_description = ${message},
+          event_date = ${date},
+          event_type = ${type || 'event'},
+          applicable_class = ${applicable_class || 'all'}
+        WHERE event_id = ${id}
+        RETURNING *
+      `;
+      if (result.length === 0) {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, event: result[0], message: 'Event updated successfully' });
+    }
+
+    const result = await sql`
+      INSERT INTO sgs_events (
+        event_title, event_description, event_date, event_type, applicable_class, record_status
+      ) VALUES (
+        ${title}, ${message}, ${date}, ${type || 'event'}, ${applicable_class || 'all'}, 'Active'
+      ) RETURNING *
     `;
-
-    let result;
-    if (columnsCheck.length > 0) {
-      // Has event_type column
-      result = await sql`
-        INSERT INTO sgs_events (
-          event_title, event_description, event_date, event_type, applicable_class, record_status
-        ) VALUES (
-          ${title}, ${message}, ${date || new Date().toISOString().split('T')[0]}, 
-          ${type || 'event'}, ${applicable_class || 'all'}, 'Active'
-        ) RETURNING *
-      `;
-    } else {
-      // No event_type column
-      result = await sql`
-        INSERT INTO sgs_events (
-          event_title, event_description, event_date, applicable_class, record_status
-        ) VALUES (
-          ${title}, ${message}, ${date || new Date().toISOString().split('T')[0]}, 
-          ${applicable_class || 'all'}, 'Active'
-        ) RETURNING *
-      `;
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      event: result[0],
-      message: 'Event created successfully' 
-    }, { status: 201 });
+    return NextResponse.json({ success: true, event: result[0], message: 'Event created successfully' }, { status: 201 });
   } catch (error) {
-    console.error('Error adding event:', error);
+    console.error('Error saving event:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -87,20 +75,13 @@ export async function DELETE(request) {
     const id = searchParams.get('id');
 
     const result = await sql`
-      UPDATE sgs_events 
-      SET record_status = 'Deleted' 
-      WHERE event_id = ${id}
-      RETURNING *
+      UPDATE sgs_events SET record_status = 'Deleted'
+      WHERE event_id = ${id} RETURNING *
     `;
-
     if (result.length === 0) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
-
-    return NextResponse.json({ 
-      success: true,
-      message: 'Event deleted successfully' 
-    });
+    return NextResponse.json({ success: true, message: 'Event deleted successfully' });
   } catch (error) {
     console.error('Error deleting event:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

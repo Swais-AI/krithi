@@ -90,44 +90,45 @@ export default function OthersPage() {
   };
 
   const handleAdd = async () => {
-    if (!validateForm()) return;
-    
-    const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
-    const payload: any = {
-      title: formData.title,
-      message: formData.message,
-      date: formData.date || new Date().toISOString().split('T')[0],
-      applicable_class: formData.applicable_class
-    };
-    
-    if (modalFor === 'event') {
-      payload.type = formData.type || 'event';
-    }
+  if (!validateForm()) return;
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (response.ok) {
-        if (modalFor === 'notice') {
-          fetchNotifications();
-        } else {
-          fetchEvents();
-        }
-        setIsModalOpen(false);
-        resetForm();
-      } else {
-        const error = await response.json();
-        setValidationError(error.error || `Failed to add ${modalFor}`);
-      }
-    } catch (error) {
-      console.error(`Error adding ${modalFor}:`, error);
-      setValidationError(`Failed to add ${modalFor}`);
-    }
+  const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
+  const payload : any = {
+    title: formData.title,
+    message: formData.message,
+    date: formData.date,
+    applicable_class: formData.applicable_class,
   };
 
+  // ✅ FIX: pass id when editing
+  if (modalType === 'modify' && selectedItem && selectedItem.id) {
+    payload.id = selectedItem.id;
+  }
+
+  if (modalFor === 'event') {
+    payload.type = formData.type || 'event';
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (response.ok) {
+      if (modalFor === 'notice') fetchNotifications();
+      else fetchEvents();
+      setIsModalOpen(false);
+      resetForm();
+    } else {
+      const error = await response.json();
+      setValidationError(error.error || `Failed to save ${modalFor}`);
+    }
+  } catch (error) {
+    console.error(`Error saving ${modalFor}:`, error);
+    setValidationError(`Failed to save ${modalFor}`);
+  }
+};
   const handleDelete = async (id, type) => {
     if (confirm(`Are you sure you want to delete this ${type}?`)) {
       try {

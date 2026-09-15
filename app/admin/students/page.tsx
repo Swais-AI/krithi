@@ -76,7 +76,7 @@ export default function StudentsPage() {
           guardian_name: s.guardian_name || '',
           guardian_phone: s.guardian_phone || '',
           guardian_email: s.guardian_email || '',
-          status: s.record_status === 'Active' ? 'Active' : (s.status || 'Inactive'),
+          status: s.record_status || s.status || 'Active',
           record_status: s.record_status || 'Inactive'
         }));
         setStudents(mappedStudents);
@@ -94,47 +94,62 @@ export default function StudentsPage() {
 
   // FIX: Handle status toggle properly
   const handleToggleStatus = async (student) => {
-    try {
-      const newStatus = student.status === 'Active' ? 'Inactive' : 'Active';
-      console.log(`🔄 Toggling status for ${student.admission_no}: ${student.status} -> ${newStatus}`);
-      
-      const response = await fetch(`${API_BASE_URL}/students`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admission_no: student.admission_no,
-          status: newStatus,
-          full_name: student.full_name,
-          class_id: student.class_id,
-          section: student.section,
-          roll_no: student.roll_no,
-          parent1_name: student.parent1_name,
-          parent1_phone: student.parent1_phone,
-          parent1_email: student.parent1_email,
-          parent2_name: student.parent2_name,
-          parent2_phone: student.parent2_phone,
-          parent2_email: student.parent2_email,
-          student_phone: student.student_phone,
-          student_email: student.student_email,
-          guardian_name: student.guardian_name,
-          guardian_phone: student.guardian_phone,
-          guardian_email: student.guardian_email
-        })
-      });
-      
-      if (response.ok) {
-        console.log('✅ Status updated successfully');
-        await fetchStudents();
-      } else {
-        const error = await response.json();
-        console.error('❌ Failed to update status:', error);
-        alert(`Failed to update status: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('❌ Error toggling status:', error);
-      alert('An error occurred while updating status');
+  const currentStatus = student.status || student.record_status || 'Active';
+  const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+
+  console.log(`🔄 Toggling ${student.admission_no}: ${currentStatus} → ${newStatus}`);
+
+  // Optimistic update: immediately flip the UI
+  setStudents((prev) =>
+    prev.map((s) =>
+      s.admission_no === student.admission_no
+        ? { ...s, status: newStatus, record_status: newStatus }
+        : s
+    )
+  );
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/students`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        admission_no: student.admission_no,
+        status: newStatus,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Revert on failure
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.admission_no === student.admission_no
+            ? { ...s, status: currentStatus, record_status: currentStatus }
+            : s
+        )
+      );
+      alert(`Failed to update: ${data.error || 'Unknown error'}`);
+      return;
     }
-  };
+
+    console.log('✅ Toggle succeeded:', data);
+
+    // Refresh from server to sync
+    fetchStudents();
+  } catch (error) {
+    // Revert on network error
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.admission_no === student.admission_no
+          ? { ...s, status: currentStatus, record_status: currentStatus }
+          : s
+      )
+    );
+    console.error('❌ Toggle error:', error);
+    alert('Network error');
+  }
+};
 
   const resetForm = () => {
     setFormData({
