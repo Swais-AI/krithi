@@ -6,6 +6,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -17,6 +18,7 @@ export default function TeachersPage() {
   const [modalType, setModalType] = useState('add');
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [validationError, setValidationError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [formData, setFormData] = useState({
     teacher_id: '',
     full_name: '',
@@ -83,9 +85,12 @@ export default function TeachersPage() {
   const handleAdd = async () => {
     if (!validateForm()) return;
     try {
-      // FIX: Convert empty class_id to null
-      const classIdValue = formData.class_id && formData.class_id !== '' ? parseInt(formData.class_id) : null;
-      
+      // FIX: Convert empty class_id to null (prevents bigint "" error)
+      const classIdValue =
+        formData.class_id && String(formData.class_id).trim() !== ''
+          ? parseInt(formData.class_id)
+          : null;
+
       const response = await fetch(`${API_BASE_URL}/teachers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,8 +129,11 @@ export default function TeachersPage() {
     if (selectedTeacher) {
       try {
         // FIX: Convert empty class_id to null
-        const classIdValue = formData.class_id && formData.class_id !== '' ? parseInt(formData.class_id) : null;
-        
+        const classIdValue =
+          formData.class_id && String(formData.class_id).trim() !== ''
+            ? parseInt(formData.class_id)
+            : null;
+
         const response = await fetch(`${API_BASE_URL}/teachers`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -160,14 +168,21 @@ export default function TeachersPage() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this teacher?')) {
-      try {
-        await fetch(`${API_BASE_URL}/teachers?id=${id}`, { method: 'DELETE' });
-        fetchTeachers();
-      } catch (error) {
-        console.error('Error deleting teacher:', error);
-      }
+  // Custom confirm modal instead of window.confirm
+  const handleDelete = (id) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await fetch(`${API_BASE_URL}/teachers?id=${deleteTarget}`, { method: 'DELETE' });
+      fetchTeachers();
+    } catch (error) {
+      console.error('Error deleting teacher:', error);
+      alert('An error occurred');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -557,6 +572,18 @@ export default function TeachersPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Custom Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Teacher?"
+        message={`Are you sure you want to delete teacher ${deleteTarget || ''}? This action cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

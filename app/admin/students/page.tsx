@@ -7,6 +7,7 @@ import {
   Users, UserCheck, UserX, BookOpen
 } from 'lucide-react';
 import StudentFormWizard from '../../../components/StudentFormWizard';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -19,6 +20,7 @@ export default function StudentsPage() {
   const [modalType, setModalType] = useState('add');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [validationError, setValidationError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [formData, setFormData] = useState({
     admission_no: '',
     name: '',
@@ -92,36 +94,48 @@ export default function StudentsPage() {
     }
   };
 
-  // FIX: Handle status toggle properly
   const handleToggleStatus = async (student) => {
-  const currentStatus = student.status || student.record_status || 'Active';
-  const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    const currentStatus = student.status || student.record_status || 'Active';
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
 
-  console.log(`🔄 Toggling ${student.admission_no}: ${currentStatus} → ${newStatus}`);
+    console.log(`🔄 Toggling ${student.admission_no}: ${currentStatus} → ${newStatus}`);
 
-  // Optimistic update: immediately flip the UI
-  setStudents((prev) =>
-    prev.map((s) =>
-      s.admission_no === student.admission_no
-        ? { ...s, status: newStatus, record_status: newStatus }
-        : s
-    )
-  );
+    // Optimistic update: immediately flip the UI
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.admission_no === student.admission_no
+          ? { ...s, status: newStatus, record_status: newStatus }
+          : s
+      )
+    );
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/students`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        admission_no: student.admission_no,
-        status: newStatus,
-      }),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/students`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admission_no: student.admission_no,
+          status: newStatus,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      // Revert on failure
+      if (!response.ok) {
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.admission_no === student.admission_no
+              ? { ...s, status: currentStatus, record_status: currentStatus }
+              : s
+          )
+        );
+        alert(`Failed to update: ${data.error || 'Unknown error'}`);
+        return;
+      }
+
+      console.log('✅ Toggle succeeded:', data);
+      fetchStudents();
+    } catch (error) {
       setStudents((prev) =>
         prev.map((s) =>
           s.admission_no === student.admission_no
@@ -129,27 +143,10 @@ export default function StudentsPage() {
             : s
         )
       );
-      alert(`Failed to update: ${data.error || 'Unknown error'}`);
-      return;
+      console.error('❌ Toggle error:', error);
+      alert('Network error');
     }
-
-    console.log('✅ Toggle succeeded:', data);
-
-    // Refresh from server to sync
-    fetchStudents();
-  } catch (error) {
-    // Revert on network error
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.admission_no === student.admission_no
-          ? { ...s, status: currentStatus, record_status: currentStatus }
-          : s
-      )
-    );
-    console.error('❌ Toggle error:', error);
-    alert('Network error');
-  }
-};
+  };
 
   const resetForm = () => {
     setFormData({
@@ -217,19 +214,24 @@ export default function StudentsPage() {
     resetForm();
   };
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this student?')) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/students?id=${id}`, { method: 'DELETE' });
-        if (response.ok) {
-          fetchStudents();
-        } else {
-          alert('Failed to delete student');
-        }
-      } catch (error) {
-        console.error('Error deleting student:', error);
-        alert('An error occurred');
+  const handleDelete = (id) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/students?id=${deleteTarget}`, { method: 'DELETE' });
+      if (response.ok) {
+        fetchStudents();
+      } else {
+        alert('Failed to delete student');
       }
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      alert('An error occurred');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -407,6 +409,18 @@ export default function StudentsPage() {
         onSuccess={handleWizardSuccess}
         editData={editingStudent}
         theme="dark"
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Student?"
+        message={`Are you sure you want to delete student ${deleteTarget || ''}? This action cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import ConfirmModal from '../../components/ConfirmModal';
 import { 
   Users, 
   BookOpen,
@@ -22,20 +23,23 @@ export default function AdminLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
-   if (window.confirm('Are you sure you want to logout from this page?')) {
-      localStorage.clear();
-      sessionStorage.clear();
-      router.push('/');
-   }
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = `${process.env.NEXT_PUBLIC_APP_URL || 'https://staging.sgs.swais.in'}/login`;
   };
 
   const menuItems = [
-  { id: 'teachers', name: 'Teachers', icon: BookOpen, path: '/admin/teachers', color: 'from-green-500 to-emerald-500' },
-  { id: 'students', name: 'Students', icon: Users, path: '/admin/students', color: 'from-blue-500 to-cyan-500' },
-  { id: 'others', name: 'Others', icon: Settings, path: '/admin/others', color: 'from-purple-500 to-pink-500' },
-];
+    { id: 'teachers', name: 'Teachers', icon: BookOpen, path: '/admin/teachers', color: 'from-green-500 to-emerald-500' },
+    { id: 'students', name: 'Students', icon: Users, path: '/admin/students', color: 'from-blue-500 to-cyan-500' },
+    { id: 'others', name: 'Others', icon: Settings, path: '/admin/others', color: 'from-purple-500 to-pink-500' },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
@@ -131,7 +135,7 @@ export default function AdminLayout({
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 relative rounded-xl overflow-hidden border border-yellow-400/20">
-                   <Image src="/sgslogo.jpeg" alt="SGS School Logo" fill className="object-cover" />
+                  <Image src="/sgslogo.jpeg" alt="SGS School Logo" fill className="object-cover" />
                 </div>
                 <div className="text-right">
                   <p className="text-white text-sm font-bold">SWAIS</p>
@@ -146,6 +150,18 @@ export default function AdminLayout({
           {children}
         </div>
       </main>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        title="Logout?"
+        message="Are you sure you want to logout from this page?"
+        confirmText="Yes, Logout"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </div>
   );
 }

@@ -12,9 +12,9 @@ export async function GET() {
         guardian_name, guardian_phone, guardian_email,
         record_status
       FROM sgs_student_master
-      WHERE record_status = 'Active'
-       AND full_name IS NOT NULL
-       AND full_name != ''
+      WHERE record_status IN ('Active', 'Inactive')
+        AND full_name IS NOT NULL
+        AND full_name != ''
       ORDER BY admission_no
     `;
     return NextResponse.json(students);
@@ -94,30 +94,36 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { admission_no } = body;
+    console.log('PUT /api/students body:', body);
+
+    const { admission_no, status } = body;
 
     if (!admission_no) {
       return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
     }
 
-    // Detect if this is a status-only toggle or full update
-    const isStatusOnly = Object.keys(body).length <= 2 && body.status !== undefined;
+    // ============== STATUS-ONLY TOGGLE ==============
+    // If the body has ONLY admission_no + status, treat as toggle
+    if (status !== undefined && !body.full_name) {
+      // Explicitly set record_status to 'Active' or 'Inactive' — never 'Deleted'
+      const newStatus = status === 'Active' ? 'Active' : 'Inactive';
 
-    if (isStatusOnly) {
-      // Status-only toggle
       const result = await sql`
         UPDATE sgs_student_master
-        SET record_status = ${body.status}
+        SET record_status = ${newStatus}
         WHERE admission_no = ${admission_no}
         RETURNING *
       `;
+
       if (result.length === 0) {
         return NextResponse.json({ error: 'Student not found' }, { status: 404 });
       }
+
+      console.log(`✅ Toggled ${admission_no} to ${newStatus}`);
       return NextResponse.json({ success: true, student: result[0] });
     }
 
-    // Full update
+    // ============== FULL UPDATE ==============
     const {
       full_name, class_id, section, roll_no,
       parent1_name, parent1_phone, parent1_email,
@@ -157,16 +163,17 @@ export async function PUT(request) {
       WHERE admission_no = ${admission_no}
       RETURNING *
     `;
+
     if (result.length === 0) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
+
     return NextResponse.json({ success: true, student: result[0] });
   } catch (error) {
     console.error('Error updating student:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);

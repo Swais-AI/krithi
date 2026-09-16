@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Bell, Calendar, Plus, Search, Edit2, Trash2, 
+import {
+  Bell, Calendar, Plus, Search, Edit2, Trash2,
   X, Megaphone, CalendarPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,7 +25,7 @@ export default function OthersPage() {
     message: '',
     date: '',
     applicable_class: 'all',
-    type: 'event'
+    type: 'event',
   });
 
   useEffect(() => {
@@ -76,6 +76,31 @@ export default function OthersPage() {
     }
   };
 
+  // ✅ Format date to "12-Sep-2026"
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // ✅ Today's date in YYYY-MM-DD (for min attribute)
+  const getTodayDate = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const validateForm = () => {
     if (!formData.title.trim()) {
       setValidationError('Title is required');
@@ -85,50 +110,68 @@ export default function OthersPage() {
       setValidationError('Message is required');
       return false;
     }
+
+    // ✅ Date validation
+    if (!formData.date) {
+      setValidationError('Date is required');
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(formData.date);
+    selected.setHours(0, 0, 0, 0);
+
+    if (selected < today) {
+      setValidationError('Cannot create a notification with a past date');
+      return false;
+    }
+
     setValidationError('');
     return true;
   };
 
   const handleAdd = async () => {
-  if (!validateForm()) return;
+    if (!validateForm()) return;
 
-  const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
-  const payload : any = {
-    title: formData.title,
-    message: formData.message,
-    date: formData.date,
-    applicable_class: formData.applicable_class,
+    const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
+    const payload: any = {
+      title: formData.title,
+      message: formData.message,
+      date: formData.date,
+      applicable_class: formData.applicable_class,
+    };
+
+    // ✅ Pass id when editing
+    if (modalType === 'modify' && selectedItem && selectedItem.id) {
+      payload.id = selectedItem.id;
+    }
+
+    if (modalFor === 'event') {
+      payload.type = formData.type || 'event';
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        if (modalFor === 'notice') fetchNotifications();
+        else fetchEvents();
+        setIsModalOpen(false);
+        resetForm();
+      } else {
+        const error = await response.json();
+        setValidationError(error.error || `Failed to save ${modalFor}`);
+      }
+    } catch (error) {
+      console.error(`Error saving ${modalFor}:`, error);
+      setValidationError(`Failed to save ${modalFor}`);
+    }
   };
 
-  // ✅ FIX: pass id when editing
-  if (modalType === 'modify' && selectedItem && selectedItem.id) {
-    payload.id = selectedItem.id;
-  }
-
-  if (modalFor === 'event') {
-    payload.type = formData.type || 'event';
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (response.ok) {
-      if (modalFor === 'notice') fetchNotifications();
-      else fetchEvents();
-      setIsModalOpen(false);
-      resetForm();
-    } else {
-      const error = await response.json();
-      setValidationError(error.error || `Failed to save ${modalFor}`);
-    }
-  } catch (error) {
-    console.error(`Error saving ${modalFor}:`, error);
-    setValidationError(`Failed to save ${modalFor}`);
-  }
-};
   const handleDelete = async (id, type) => {
     if (confirm(`Are you sure you want to delete this ${type}?`)) {
       try {
@@ -154,9 +197,9 @@ export default function OthersPage() {
     setFormData({
       title: '',
       message: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDate(),
       applicable_class: 'all',
-      type: 'event'
+      type: 'event',
     });
     setSelectedItem(null);
     setValidationError('');
@@ -173,25 +216,34 @@ export default function OthersPage() {
       setFormData({
         title: item.title || '',
         message: item.message || '',
-        date: item.date || new Date().toISOString().split('T')[0],
+        // ✅ Strip time portion from any legacy ISO date
+        date: item.date ? String(item.date).split('T')[0] : getTodayDate(),
         applicable_class: item.applicable_class || 'all',
-        type: item.type || 'event'
+        type: item.type || 'event',
       });
     }
     setIsModalOpen(true);
   };
 
-  const filteredNotifications = Array.isArray(notifications) ? notifications.filter(n => {
-    const term = searchTerm.toLowerCase();
-    return (n.title || '').toLowerCase().includes(term) ||
-           (n.message || '').toLowerCase().includes(term);
-  }) : [];
+  const filteredNotifications = Array.isArray(notifications)
+    ? notifications.filter((n) => {
+        const term = searchTerm.toLowerCase();
+        return (
+          (n.title || '').toLowerCase().includes(term) ||
+          (n.message || '').toLowerCase().includes(term)
+        );
+      })
+    : [];
 
-  const filteredEvents = Array.isArray(events) ? events.filter(e => {
-    const term = searchTerm.toLowerCase();
-    return (e.title || '').toLowerCase().includes(term) ||
-           (e.message || '').toLowerCase().includes(term);
-  }) : [];
+  const filteredEvents = Array.isArray(events)
+    ? events.filter((e) => {
+        const term = searchTerm.toLowerCase();
+        return (
+          (e.title || '').toLowerCase().includes(term) ||
+          (e.message || '').toLowerCase().includes(term)
+        );
+      })
+    : [];
 
   const currentData = activeTab === 'notifications' ? filteredNotifications : filteredEvents;
   const isDataEmpty = currentData.length === 0;
@@ -289,7 +341,8 @@ export default function OthersPage() {
                     <tr key={item.id || idx} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-4 py-3 text-white text-sm font-medium">{item.title || '-'}</td>
                       <td className="px-4 py-3 text-white/80 text-sm">{item.message || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{item.date || '-'}</td>
+                      {/* ✅ Formatted date */}
+                      <td className="px-4 py-3 text-white/80 text-sm">{formatDate(item.date)}</td>
                       <td className="px-4 py-3 text-white/80 text-sm">{item.applicable_class || 'all'}</td>
                       <td className="px-4 py-3">
                         <span className="px-3 py-1 rounded-full text-sm font-semibold bg-green-500/20 text-green-400">
@@ -339,12 +392,12 @@ export default function OthersPage() {
             >
               <div className="flex justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">
-                  {modalType === 'add' 
-                    ? `Add New ${modalFor === 'notice' ? 'Notice' : 'Event'}` 
+                  {modalType === 'add'
+                    ? `Add New ${modalFor === 'notice' ? 'Notice' : 'Event'}`
                     : `Modify ${modalFor === 'notice' ? 'Notice' : 'Event'}`}
                 </h2>
-                <button 
-                  onClick={() => { setIsModalOpen(false); resetForm(); }} 
+                <button
+                  onClick={() => { setIsModalOpen(false); resetForm(); }}
                   className="text-white/40 hover:text-white"
                 >
                   ✕
@@ -364,7 +417,7 @@ export default function OthersPage() {
                     type="text"
                     placeholder={`Enter ${modalFor} title`}
                     value={formData.title}
-                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
@@ -373,16 +426,18 @@ export default function OthersPage() {
                   <textarea
                     placeholder={`Enter ${modalFor} message`}
                     value={formData.message}
-                    onChange={(e) => setFormData({...formData, message: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 min-h-[100px]"
                   />
                 </div>
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Date</label>
+                  {/* ✅ min attribute prevents past dates */}
                   <input
                     type="date"
                     value={formData.date}
-                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    min={getTodayDate()}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   />
                 </div>
@@ -391,7 +446,7 @@ export default function OthersPage() {
                     <label className="text-white/70 text-sm block mb-1">Type</label>
                     <select
                       value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                     >
                       <option value="event">Event</option>
@@ -406,11 +461,11 @@ export default function OthersPage() {
                   <label className="text-white/70 text-sm block mb-1">Applicable Class</label>
                   <select
                     value={formData.applicable_class}
-                    onChange={(e) => setFormData({...formData, applicable_class: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, applicable_class: e.target.value })}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   >
                     <option value="all">All Classes</option>
-                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(num => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
                       <option key={num} value={num}>Class {num}</option>
                     ))}
                   </select>
