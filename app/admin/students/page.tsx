@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import StudentFormWizard from '../../../components/StudentFormWizard';
 import ConfirmModal from '../../../components/ConfirmModal';
+import ModifyLookupModal from '../../../components/ModifyLookupModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -21,6 +22,7 @@ export default function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [lookupOpen, setLookupOpen] = useState(false);
   const [formData, setFormData] = useState({
     admission_no: '',
     name: '',
@@ -100,7 +102,6 @@ export default function StudentsPage() {
 
     console.log(`🔄 Toggling ${student.admission_no}: ${currentStatus} → ${newStatus}`);
 
-    // Optimistic update: immediately flip the UI
     setStudents((prev) =>
       prev.map((s) =>
         s.admission_no === student.admission_no
@@ -235,6 +236,17 @@ export default function StudentsPage() {
     }
   };
 
+  // Called by ModifyLookupModal — returns false if not found
+  const handleModifyLookup = (id) => {
+    const student = students.find(
+      s => s.admission_no === id || s.student_id === id || s.id === id
+    );
+    if (!student) return false;
+    setLookupOpen(false);
+    openModal('modify', student);
+    return true;
+  };
+
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return s.name?.toLowerCase().includes(term);
@@ -283,12 +295,7 @@ export default function StudentsPage() {
           <button onClick={() => openModal('add')} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
             <Plus size={18} /> Add Student
           </button>
-          <button onClick={() => {
-            const id = prompt('Enter Admission Number or Student ID to modify:');
-            const student = students.find(s => s.admission_no === id || s.student_id === id || s.id === id);
-            if (student) openModal('modify', student);
-            else alert('Student not found!');
-          }} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
+          <button onClick={() => setLookupOpen(true)} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
             <Pencil size={18} /> Modify Student
           </button>
         </div>
@@ -303,15 +310,16 @@ export default function StudentsPage() {
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
             />
           </div>
-          <select
+                      <select
             value={searchType}
             onChange={(e) => setSearchType(e.target.value)}
             className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+            style={{ colorScheme: 'dark' }}
           >
-            <option value="name">Search by Name</option>
-            <option value="id">Search by ID</option>
-            <option value="class">Search by Class</option>
-            <option value="section">Search by Section</option>
+                        <option value="name"    style={{ color: '#111827', backgroundColor: '#ffffff' }}>Search by Name</option>
+            <option value="id"      style={{ color: '#111827', backgroundColor: '#ffffff' }}>Search by ID</option>
+            <option value="class"   style={{ color: '#111827', backgroundColor: '#ffffff' }}>Search by Class</option>
+            <option value="section" style={{ color: '#111827', backgroundColor: '#ffffff' }}>Search by Section</option>
           </select>
         </div>
 
@@ -411,7 +419,16 @@ export default function StudentsPage() {
         theme="dark"
       />
 
-      {/* Delete Confirmation Modal */}
+      <ModifyLookupModal
+        isOpen={lookupOpen}
+        onClose={() => setLookupOpen(false)}
+        title="Modify Student"
+        placeholder="Enter Admission Number or Student ID"
+        errorText="Student not found"
+        onSubmit={handleModifyLookup}
+        isDark={true}
+      />
+
       <ConfirmModal
         isOpen={!!deleteTarget}
         title="Delete Student?"

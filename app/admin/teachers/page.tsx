@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../../components/ConfirmModal';
+import ModifyLookupModal from '../../../components/ModifyLookupModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -19,6 +20,7 @@ export default function TeachersPage() {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [lookupOpen, setLookupOpen] = useState(false);
   const [formData, setFormData] = useState({
     teacher_id: '',
     full_name: '',
@@ -168,6 +170,19 @@ export default function TeachersPage() {
     }
   };
 
+  // Called by ModifyLookupModal — returns false if not found
+  const handleModifyLookup = (id) => {
+    const teacher = teachers.find(
+      (t) => String(t.id) === String(id) || String(t.teacher_id) === String(id)
+    );
+    if (teacher) {
+      setLookupOpen(false);
+      openModal('modify', teacher);
+      return true;
+    }
+    return false; // triggers "Record not found" in the modal
+  };
+
   // Custom confirm modal instead of window.confirm
   const handleDelete = (id) => {
     setDeleteTarget(id);
@@ -283,12 +298,7 @@ export default function TeachersPage() {
           <button onClick={() => openModal('add')} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
             <Plus size={18} /> Add Teacher
           </button>
-          <button onClick={() => {
-            const id = prompt('Enter Teacher ID to modify:');
-            const teacher = teachers.find(t => String(t.id) === id || String(t.teacher_id) === id);
-            if (teacher) openModal('modify', teacher);
-            else alert('Teacher not found!');
-          }} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
+          <button onClick={() => setLookupOpen(true)} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
             <Pencil size={18} /> Modify Teacher
           </button>
         </div>
@@ -527,9 +537,9 @@ export default function TeachersPage() {
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   >
-                    <option value="Teacher">Teacher</option>
-                    <option value="Headmaster">Headmaster</option>
-                    <option value="Class Teacher">Class Teacher</option>
+                    <option value="Teacher"       style={{ color: '#111827', backgroundColor: '#ffffff' }}>Teacher</option>
+                    <option value="Headmaster"    style={{ color: '#111827', backgroundColor: '#ffffff' }}>Headmaster</option>
+                    <option value="Class Teacher" style={{ color: '#111827', backgroundColor: '#ffffff' }}>Class Teacher</option>
                   </select>
                 </div>
                 <div>
@@ -539,8 +549,8 @@ export default function TeachersPage() {
                     onChange={(e) => setFormData({...formData, is_active: e.target.value === 'Active'})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
+                    <option value="Active"   style={{ color: '#111827', backgroundColor: '#ffffff' }}>Active</option>
+                    <option value="Inactive" style={{ color: '#111827', backgroundColor: '#ffffff' }}>Inactive</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-3">
@@ -572,6 +582,16 @@ export default function TeachersPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Custom Modify Lookup Modal (replaces window.prompt) */}
+      <ModifyLookupModal
+        isOpen={lookupOpen}
+        onClose={() => setLookupOpen(false)}
+        onSubmit={handleModifyLookup}
+        title="Modify Teacher"
+        placeholder="Enter Teacher ID (e.g., T001 or H001)"
+        errorText="Teacher not found. Please check the ID."
+      />
 
       {/* Custom Delete Confirmation Modal */}
       <ConfirmModal
