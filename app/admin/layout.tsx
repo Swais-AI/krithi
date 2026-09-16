@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../components/ConfirmModal';
 import { 
   Users, 
@@ -20,10 +20,18 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Desktop: sidebar is expanded (280px) or collapsed (80px)
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Mobile: drawer is closed by default, overlays content when opened
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Auto-close mobile drawer on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -38,26 +46,22 @@ export default function AdminLayout({
   const menuItems = [
     { id: 'teachers', name: 'Teachers', icon: BookOpen, path: '/admin/teachers', color: 'from-green-500 to-emerald-500' },
     { id: 'students', name: 'Students', icon: Users, path: '/admin/students', color: 'from-blue-500 to-cyan-500' },
-    { id: 'others', name: 'Others', icon: Settings, path: '/admin/others', color: 'from-purple-500 to-pink-500' },
+    { id: 'others', name: 'Others', icon: Settings, path: '/admin/others',color: 'from-purple-500 to-pink-500' },
   ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
-      {/* Sidebar */}
-      <motion.aside 
-        initial={false}
-        animate={{ width: sidebarOpen ? '280px' : '80px' }}
-        className="fixed left-0 top-0 h-full bg-white/5 backdrop-blur-xl border-r border-white/10 z-50"
-      >
+  // Shared sidebar content (used by both desktop rail and mobile drawer)
+  const SidebarContent = ({ isMobile = false }) => {
+    const isExpanded = isMobile ? true : sidebarOpen;
+    return (
+      <>
         <div className="p-6">
           <div className="flex items-center justify-between mb-8">
-            {sidebarOpen && (
+            {isExpanded && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex flex-col items-center w-full"
               >
-                {/* SGS Logo */}
                 <div className="w-20 h-20 relative rounded-full overflow-hidden border-2 border-yellow-400/40 shadow-lg shadow-yellow-500/20 bg-white/5">
                   <Image
                     src="/sgslogo.jpeg"
@@ -73,7 +77,7 @@ export default function AdminLayout({
                 </div>
               </motion.div>
             )}
-            {!sidebarOpen && (
+            {!isExpanded && (
               <button 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="text-white/70 hover:text-white transition-colors"
@@ -98,7 +102,7 @@ export default function AdminLayout({
                     whileTap={{ scale: 0.98 }}
                   >
                     <item.icon size={20} />
-                    {sidebarOpen && <span className="font-medium">{item.name}</span>}
+                    {isExpanded && <span className="font-medium">{item.name}</span>}
                   </motion.div>
                 </Link>
               );
@@ -113,31 +117,95 @@ export default function AdminLayout({
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span className="font-medium">Logout</span>}
+            {isExpanded && <span className="font-medium">Logout</span>}
           </button>
         </div>
+      </>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+      {/* ============ DESKTOP SIDEBAR (hidden on mobile) ============ */}
+      <motion.aside 
+        initial={false}
+        animate={{ width: sidebarOpen ? '280px' : '80px' }}
+        className="hidden lg:block fixed left-0 top-0 h-full bg-white/5 backdrop-blur-xl border-r border-white/10 z-50"
+      >
+        <SidebarContent isMobile={false} />
       </motion.aside>
 
-      {/* Main Content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-[280px]' : 'ml-[80px]'}`}>
-        {/* Welcome Header with Logo */}
+      {/* ============ MOBILE SIDEBAR DRAWER ============ */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="lg:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[60]"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+            {/* Drawer */}
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'tween', duration: 0.25 }}
+              className="lg:hidden fixed left-0 top-0 h-full w-[280px] bg-slate-900/95 backdrop-blur-xl border-r border-white/10 z-[70] overflow-y-auto"
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="absolute top-4 right-4 text-white/60 hover:text-white p-2 rounded-lg hover:bg-white/10 transition z-10"
+                aria-label="Close menu"
+              >
+                <X size={22} />
+              </button>
+              <SidebarContent isMobile={true} />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ============ MAIN CONTENT ============ */}
+      <main
+        className={`transition-all duration-300 ${
+          sidebarOpen ? 'lg:ml-[280px]' : 'lg:ml-[80px]'
+        } ml-0`}
+      >
+        {/* Welcome Header */}
         <div className="bg-white/5 backdrop-blur-xl border-b border-white/10 sticky top-0 z-40">
-          <div className="px-8 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                  <span>👋</span>
-                  Welcome, Admin!
-                </h2>
-                <p className="text-white/50 text-sm mt-1">
-                  Here's what's happening with SGS School today
-                </p>
+          <div className="px-4 sm:px-6 lg:px-8 py-3 lg:py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {/* Mobile hamburger — always visible under lg */}
+                <button
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="lg:hidden flex-shrink-0 p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+                  aria-label="Open menu"
+                >
+                  <Menu size={22} />
+                </button>
+
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white flex items-center gap-2 truncate">
+                    <span>👋</span>
+                    <span className="truncate">Welcome, Admin!</span>
+                  </h2>
+                  <p className="text-white/50 text-xs sm:text-sm mt-0.5 hidden sm:block">
+                    Here's what's happening with SGS School today
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 relative rounded-xl overflow-hidden border border-yellow-400/20">
+
+              {/* Right side logo block — hide small label on very small screens */}
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 relative rounded-xl overflow-hidden border border-yellow-400/20">
                   <Image src="/sgslogo.jpeg" alt="SGS School Logo" fill className="object-cover" />
                 </div>
-                <div className="text-right">
+                <div className="text-right hidden sm:block">
                   <p className="text-white text-sm font-bold">SWAIS</p>
                   <p className="text-white/60 text-xs">SARASWATI</p>
                 </div>
@@ -146,7 +214,7 @@ export default function AdminLayout({
           </div>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {children}
         </div>
       </main>

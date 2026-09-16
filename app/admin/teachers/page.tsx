@@ -80,6 +80,13 @@ export default function TeachersPage() {
       setValidationError('Please enter a valid email address');
       return false;
     }
+    // Class ID: if non-empty, must be a positive integer
+    if (formData.class_id && String(formData.class_id).trim() !== '') {
+      if (!/^\d+$/.test(String(formData.class_id).trim())) {
+        setValidationError('Class ID must be a number');
+        return false;
+      }
+    }
     setValidationError('');
     return true;
   };
@@ -87,7 +94,6 @@ export default function TeachersPage() {
   const handleAdd = async () => {
     if (!validateForm()) return;
     try {
-      // FIX: Convert empty class_id to null (prevents bigint "" error)
       const classIdValue =
         formData.class_id && String(formData.class_id).trim() !== ''
           ? parseInt(formData.class_id)
@@ -130,7 +136,6 @@ export default function TeachersPage() {
     if (!validateForm()) return;
     if (selectedTeacher) {
       try {
-        // FIX: Convert empty class_id to null
         const classIdValue =
           formData.class_id && String(formData.class_id).trim() !== ''
             ? parseInt(formData.class_id)
@@ -170,7 +175,6 @@ export default function TeachersPage() {
     }
   };
 
-  // Called by ModifyLookupModal — returns false if not found
   const handleModifyLookup = (id) => {
     const teacher = teachers.find(
       (t) => String(t.id) === String(id) || String(t.teacher_id) === String(id)
@@ -180,10 +184,9 @@ export default function TeachersPage() {
       openModal('modify', teacher);
       return true;
     }
-    return false; // triggers "Record not found" in the modal
+    return false;
   };
 
-  // Custom confirm modal instead of window.confirm
   const handleDelete = (id) => {
     setDeleteTarget(id);
   };
@@ -266,45 +269,51 @@ export default function TeachersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-blue-400" />
-            Teacher Management
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center gap-2 sm:gap-3">
+            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 flex-shrink-0" />
+            <span className="truncate">Teacher Management</span>
           </h1>
-          <p className="text-white/60">Manage all teachers, track their progress, and update records</p>
+          <p className="text-white/60 text-sm sm:text-base">Manage all teachers, track their progress, and update records</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-4 sm:p-6">
             <p className="text-white/80 text-sm">Total Teachers</p>
-            <p className="text-white text-4xl font-bold">{stats.total}</p>
-            <p className="text-white/60 text-sm mt-2">Enrolled this year</p>
+            <p className="text-white text-3xl sm:text-4xl font-bold">{stats.total}</p>
+            <p className="text-white/60 text-xs sm:text-sm mt-2">Enrolled this year</p>
           </div>
-          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-4 sm:p-6">
             <p className="text-white/80 text-sm">Active Teachers</p>
-            <p className="text-white text-4xl font-bold">{stats.active}</p>
-            <p className="text-white/60 text-sm mt-2">Currently teaching</p>
+            <p className="text-white text-3xl sm:text-4xl font-bold">{stats.active}</p>
+            <p className="text-white/60 text-xs sm:text-sm mt-2">Currently teaching</p>
           </div>
-          <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-6">
+          <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 sm:col-span-2 md:col-span-1">
             <p className="text-white/80 text-sm">Inactive Teachers</p>
-            <p className="text-white text-4xl font-bold">{stats.inactive}</p>
-            <p className="text-white/60 text-sm mt-2">Not currently teaching</p>
+            <p className="text-white text-3xl sm:text-4xl font-bold">{stats.inactive}</p>
+            <p className="text-white/60 text-xs sm:text-sm mt-2">Not currently teaching</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-6">
-          <button onClick={() => openModal('add')} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mb-6">
+          <button
+            onClick={() => openModal('add')}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 sm:px-6 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition"
+          >
             <Plus size={18} /> Add Teacher
           </button>
-          <button onClick={() => setLookupOpen(true)} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition">
+          <button
+            onClick={() => setLookupOpen(true)}
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 sm:px-6 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition"
+          >
             <Pencil size={18} /> Modify Teacher
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="flex-1 min-w-[200px] relative">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
+          <div className="flex-1 sm:min-w-[200px] relative">
             <input
               type="text"
               placeholder="Search by name, ID, or subject..."
@@ -317,21 +326,21 @@ export default function TeachersPage() {
 
         <div className="bg-white/5 rounded-2xl overflow-hidden border border-white/10">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-white/10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">ID</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Name</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Subject</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Qualification</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Class</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Section 1</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Section 2</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Role</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Phone</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Email</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Status</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">ID</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Name</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Subject</th>
+                  <th className="hidden md:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Qualification</th>
+                  <th className="hidden lg:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Class</th>
+                  <th className="hidden lg:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Section 1</th>
+                  <th className="hidden xl:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Section 2</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Role</th>
+                  <th className="hidden lg:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Phone</th>
+                  <th className="hidden xl:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Email</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -348,18 +357,18 @@ export default function TeachersPage() {
                 ) : (
                   filteredTeachers.map((teacher, idx) => (
                     <tr key={teacher.id || teacher.teacher_id || idx} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.id || teacher.teacher_id || '-'}</td>
-                      <td className="px-4 py-3 text-white text-sm font-medium">{teacher.name || teacher.full_name || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.subject || teacher.subject_name || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.qualification || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.class_id || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.section_1 || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.section_2 || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.role || 'Teacher'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.contact || teacher.phone || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{teacher.email || teacher.email_id || '-'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{teacher.id || teacher.teacher_id || '-'}</td>
+                      <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">{teacher.name || teacher.full_name || '-'}</td>
+                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.subject || teacher.subject_name || '-'}</td>
+                      <td className="hidden md:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.qualification || '-'}</td>
+                      <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.class_id || '-'}</td>
+                      <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.section_1 || '-'}</td>
+                      <td className="hidden xl:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.section_2 || '-'}</td>
+                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.role || 'Teacher'}</td>
+                      <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{teacher.contact || teacher.phone || '-'}</td>
+                      <td className="hidden xl:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.email || teacher.email_id || '-'}</td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap ${
                           teacher.status === 'Active' || teacher.is_active === true 
                             ? 'bg-green-500/20 text-green-400' 
                             : 'bg-red-500/20 text-red-400'
@@ -367,8 +376,8 @@ export default function TeachersPage() {
                           {teacher.status === 'Active' || teacher.is_active === true ? '● Active' : '○ Inactive'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
+                      <td className="px-3 sm:px-4 py-3">
+                        <div className="flex gap-1.5 sm:gap-2">
                           <button
                             onClick={() => openModal('modify', teacher)}
                             className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition"
@@ -399,18 +408,18 @@ export default function TeachersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4"
             onClick={() => setIsModalOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 sm:p-8 w-full max-w-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">
+              <div className="flex justify-between mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
                   {modalType === 'add' ? 'Add New Teacher' : 'Modify Teacher'}
                 </h2>
                 <button 
@@ -427,7 +436,7 @@ export default function TeachersPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="text-white/70 text-sm block mb-1">
                     Teacher ID * <span className="text-xs text-white/40">(T=Teacher, H=Headmaster)</span>
@@ -564,7 +573,7 @@ export default function TeachersPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="flex flex-col sm:flex-row gap-3 mt-6">
                 <button
                   onClick={modalType === 'add' ? handleAdd : handleModify}
                   className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
@@ -583,7 +592,6 @@ export default function TeachersPage() {
         )}
       </AnimatePresence>
 
-      {/* Custom Modify Lookup Modal (replaces window.prompt) */}
       <ModifyLookupModal
         isOpen={lookupOpen}
         onClose={() => setLookupOpen(false)}
@@ -593,7 +601,6 @@ export default function TeachersPage() {
         errorText="Teacher not found. Please check the ID."
       />
 
-      {/* Custom Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={!!deleteTarget}
         title="Delete Teacher?"

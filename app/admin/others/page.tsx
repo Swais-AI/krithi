@@ -6,8 +6,11 @@ import {
   X, Megaphone, CalendarPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
+
+const OPTION_STYLE = { color: '#111827', backgroundColor: '#ffffff' };
 
 export default function OthersPage() {
   const [notifications, setNotifications] = useState([]);
@@ -20,6 +23,7 @@ export default function OthersPage() {
   const [modalFor, setModalFor] = useState('notice');
   const [selectedItem, setSelectedItem] = useState(null);
   const [validationError, setValidationError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, type }
   const [formData, setFormData] = useState({
     title: '',
     message: '',
@@ -110,8 +114,6 @@ export default function OthersPage() {
       setValidationError('Message is required');
       return false;
     }
-
-    // ✅ Date validation
     if (!formData.date) {
       setValidationError('Date is required');
       return false;
@@ -135,14 +137,13 @@ export default function OthersPage() {
     if (!validateForm()) return;
 
     const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
-    const payload: any = {
+    const payload : any = {
       title: formData.title,
       message: formData.message,
       date: formData.date,
       applicable_class: formData.applicable_class,
     };
 
-    // ✅ Pass id when editing
     if (modalType === 'modify' && selectedItem && selectedItem.id) {
       payload.id = selectedItem.id;
     }
@@ -172,24 +173,31 @@ export default function OthersPage() {
     }
   };
 
-  const handleDelete = async (id, type) => {
-    if (confirm(`Are you sure you want to delete this ${type}?`)) {
-      try {
-        const apiEndpoint = type === 'notice' ? 'notices' : 'events';
-        const response = await fetch(`${API_BASE_URL}/${apiEndpoint}?id=${id}`, { method: 'DELETE' });
-        if (response.ok) {
-          if (type === 'notice') {
-            fetchNotifications();
-          } else {
-            fetchEvents();
-          }
+  // ✅ Now opens ConfirmModal instead of window.confirm
+  const handleDelete = (id, type) => {
+    setDeleteTarget({ id, type });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { id, type } = deleteTarget;
+    try {
+      const apiEndpoint = type === 'notice' ? 'notices' : 'events';
+      const response = await fetch(`${API_BASE_URL}/${apiEndpoint}?id=${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        if (type === 'notice') {
+          fetchNotifications();
         } else {
-          alert(`Failed to delete ${type}`);
+          fetchEvents();
         }
-      } catch (error) {
-        console.error(`Error deleting ${type}:`, error);
-        alert('An error occurred');
+      } else {
+        alert(`Failed to delete ${type}`);
       }
+    } catch (error) {
+      console.error(`Error deleting ${type}:`, error);
+      alert('An error occurred');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -216,7 +224,6 @@ export default function OthersPage() {
       setFormData({
         title: item.title || '',
         message: item.message || '',
-        // ✅ Strip time portion from any legacy ISO date
         date: item.date ? String(item.date).split('T')[0] : getTodayDate(),
         applicable_class: item.applicable_class || 'all',
         type: item.type || 'event',
@@ -249,64 +256,68 @@ export default function OthersPage() {
   const isDataEmpty = currentData.length === 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Megaphone className="w-8 h-8 text-blue-400" />
-            Communication & Events
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center gap-2 sm:gap-3">
+            <Megaphone className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 flex-shrink-0" />
+            <span className="truncate">Communication & Events</span>
           </h1>
-          <p className="text-white/60">Manage notifications, tours, and school functions</p>
+          <p className="text-white/60 text-sm sm:text-base">Manage notifications, tours, and school functions</p>
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-6">
+        {/* Tabs — horizontal scroll on tiny screens, stack the add button below */}
+        <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6">
           <button
             onClick={() => setActiveTab('notifications')}
-            className={`px-6 py-2.5 rounded-xl font-semibold transition ${
+            className={`flex-1 sm:flex-initial px-3 sm:px-6 py-2.5 rounded-xl font-semibold transition text-sm sm:text-base ${
               activeTab === 'notifications'
                 ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
                 : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
             }`}
           >
-            <Bell className="inline w-4 h-4 mr-2" />
+            <Bell className="inline w-4 h-4 mr-1 sm:mr-2" />
             Notifications ({notifications.length})
           </button>
           <button
             onClick={() => setActiveTab('events')}
-            className={`px-6 py-2.5 rounded-xl font-semibold transition ${
+            className={`flex-1 sm:flex-initial px-3 sm:px-6 py-2.5 rounded-xl font-semibold transition text-sm sm:text-base ${
               activeTab === 'events'
                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                 : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
             }`}
           >
-            <Calendar className="inline w-4 h-4 mr-2" />
-            Events & Tours ({events.length})
+            <Calendar className="inline w-4 h-4 mr-1 sm:mr-2" />
+            Events ({events.length})
           </button>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
           {activeTab === 'notifications' ? (
             <button
               onClick={() => openModal('add', null, 'notice')}
-              className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition"
+              className="w-full sm:w-auto px-5 sm:px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition"
             >
               <Plus size={18} /> Add Notice
             </button>
           ) : (
             <button
               onClick={() => openModal('add', null, 'event')}
-              className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 hover:shadow-lg transition"
+              className="w-full sm:w-auto px-5 sm:px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition"
             >
               <CalendarPlus size={18} /> Add Event
             </button>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="flex-1 min-w-[200px] relative">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
+          <div className="flex-1 sm:min-w-[200px] relative">
             <input
               type="text"
               placeholder={`Search ${activeTab}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40 pr-10"
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-5 h-5" />
           </div>
@@ -314,15 +325,15 @@ export default function OthersPage() {
 
         <div className="bg-white/5 rounded-2xl overflow-hidden border border-white/10">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-white/10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Title</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Message</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Date</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Class</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Status</th>
-                  <th className="px-4 py-3 text-left text-white text-sm font-medium">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Title</th>
+                  <th className="hidden md:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Message</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Date</th>
+                  <th className="hidden sm:table-cell px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Class</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-white text-xs sm:text-sm font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -339,18 +350,21 @@ export default function OthersPage() {
                 ) : (
                   currentData.map((item, idx) => (
                     <tr key={item.id || idx} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="px-4 py-3 text-white text-sm font-medium">{item.title || '-'}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{item.message || '-'}</td>
-                      {/* ✅ Formatted date */}
-                      <td className="px-4 py-3 text-white/80 text-sm">{formatDate(item.date)}</td>
-                      <td className="px-4 py-3 text-white/80 text-sm">{item.applicable_class || 'all'}</td>
-                      <td className="px-4 py-3">
-                        <span className="px-3 py-1 rounded-full text-sm font-semibold bg-green-500/20 text-green-400">
+                      <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">
+                        <div>{item.title || '-'}</div>
+                        {/* Show message inline on mobile since the column is hidden */}
+                        <div className="md:hidden text-white/60 text-xs mt-1 line-clamp-2">{item.message || ''}</div>
+                      </td>
+                      <td className="hidden md:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm max-w-xs truncate">{item.message || '-'}</td>
+                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{formatDate(item.date)}</td>
+                      <td className="hidden sm:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{item.applicable_class || 'all'}</td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <span className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-green-500/20 text-green-400 whitespace-nowrap">
                           ● Active
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
+                      <td className="px-3 sm:px-4 py-3">
+                        <div className="flex gap-1.5 sm:gap-2">
                           <button
                             onClick={() => openModal('modify', item, activeTab === 'notifications' ? 'notice' : 'event')}
                             className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition"
@@ -380,18 +394,18 @@ export default function OthersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4"
             onClick={() => setIsModalOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 w-full max-w-lg border border-white/20"
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 sm:p-8 w-full max-w-lg border border-white/20 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">
+              <div className="flex justify-between mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
                   {modalType === 'add'
                     ? `Add New ${modalFor === 'notice' ? 'Notice' : 'Event'}`
                     : `Modify ${modalFor === 'notice' ? 'Notice' : 'Event'}`}
@@ -432,7 +446,6 @@ export default function OthersPage() {
                 </div>
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Date</label>
-                  {/* ✅ min attribute prevents past dates */}
                   <input
                     type="date"
                     value={formData.date}
@@ -449,11 +462,11 @@ export default function OthersPage() {
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                     >
-                      <option value="event">Event</option>
-                      <option value="tour">Tour</option>
-                      <option value="function">Function</option>
-                      <option value="workshop">Workshop</option>
-                      <option value="other">Other</option>
+                      <option value="event"     style={OPTION_STYLE}>Event</option>
+                      <option value="tour"      style={OPTION_STYLE}>Tour</option>
+                      <option value="function"  style={OPTION_STYLE}>Function</option>
+                      <option value="workshop"  style={OPTION_STYLE}>Workshop</option>
+                      <option value="other"     style={OPTION_STYLE}>Other</option>
                     </select>
                   </div>
                 )}
@@ -464,15 +477,15 @@ export default function OthersPage() {
                     onChange={(e) => setFormData({ ...formData, applicable_class: e.target.value })}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
                   >
-                    <option value="all">All Classes</option>
+                    <option value="all" style={OPTION_STYLE}>All Classes</option>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
-                      <option key={num} value={num}>Class {num}</option>
+                      <option key={num} value={num} style={OPTION_STYLE}>Class {num}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="flex flex-col sm:flex-row gap-3 mt-6">
                 <button
                   onClick={handleAdd}
                   className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
@@ -490,6 +503,18 @@ export default function OthersPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Custom Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title={`Delete ${deleteTarget?.type === 'notice' ? 'Notice' : 'Event'}?`}
+        message={`Are you sure you want to delete this ${deleteTarget?.type === 'notice' ? 'notice' : 'event'}? This action cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
