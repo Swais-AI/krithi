@@ -40,7 +40,7 @@ export default function AdminLayout({
   const confirmLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = `${process.env.NEXT_PUBLIC_APP_URL || 'https://staging.sgs.swais.in'}/admin/login`;
+    window.location.href = `${process.env.NEXT_PUBLIC_APP_URL || 'https://staging.sgs.swais.in'};
   };
 
   const menuItems = [
