@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Pencil, Trash2, Search, 
   BookOpen
@@ -8,11 +8,13 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ModifyLookupModal from '../../../components/ModifyLookupModal';
+import { isValidPhone, normalizePhone } from '../../../lib/validators';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState([]);
+  const [availableClasses, setAvailableClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,6 +23,8 @@ export default function TeachersPage() {
   const [validationError, setValidationError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [lookupOpen, setLookupOpen] = useState(false);
+  const modalBodyRef = useRef(null);
+
   const [formData, setFormData] = useState({
     teacher_id: '',
     full_name: '',
@@ -39,6 +43,7 @@ export default function TeachersPage() {
 
   useEffect(() => {
     fetchTeachers();
+    fetchClasses();
   }, []);
 
   const fetchTeachers = async () => {
@@ -59,6 +64,28 @@ export default function TeachersPage() {
     }
   };
 
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/classes`);
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        // De-dupe by class_id (classes API may return multiple rows per class)
+        const seen = new Set();
+        const unique = [];
+        for (const c of data) {
+          if (!seen.has(c.class_id)) {
+            seen.add(c.class_id);
+            unique.push(c);
+          }
+        }
+        setAvailableClasses(unique);
+      }
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    }
+  };
+
+  // ============ VALIDATION ============
   const validateForm = () => {
     if (!formData.teacher_id.trim()) {
       setValidationError('Teacher ID is required');
@@ -80,7 +107,14 @@ export default function TeachersPage() {
       setValidationError('Please enter a valid email address');
       return false;
     }
-    // Class ID: if non-empty, must be a positive integer
+    // ✅ FIX 14: phone validation (required if filled)
+    if (formData.phone && formData.phone.trim() !== '') {
+      if (!isValidPhone(formData.phone)) {
+        setValidationError('Enter a valid 10-digit mobile number (starting 6-9)');
+        return false;
+      }
+    }
+    // ✅ Class ID must be numeric if non-empty
     if (formData.class_id && String(formData.class_id).trim() !== '') {
       if (!/^\d+$/.test(String(formData.class_id).trim())) {
         setValidationError('Class ID must be a number');
@@ -92,7 +126,10 @@ export default function TeachersPage() {
   };
 
   const handleAdd = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      scrollToTop();
+      return;
+    }
     try {
       const classIdValue =
         formData.class_id && String(formData.class_id).trim() !== ''
@@ -113,7 +150,7 @@ export default function TeachersPage() {
           role: formData.role,
           is_class_teacher: formData.is_class_teacher,
           subjects: formData.subjects,
-          contact: formData.phone,
+          contact: formData.phone ? normalizePhone(formData.phone) : null,
           email: formData.email_id,
           status: formData.is_active ? 'Active' : 'Inactive'
         })
@@ -125,15 +162,20 @@ export default function TeachersPage() {
       } else {
         const error = await response.json();
         setValidationError(error.error || 'Failed to add teacher');
+        scrollToTop();
       }
     } catch (error) {
       console.error('Error adding teacher:', error);
       setValidationError('Failed to add teacher');
+      scrollToTop();
     }
   };
 
   const handleModify = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      scrollToTop();
+      return;
+    }
     if (selectedTeacher) {
       try {
         const classIdValue =
@@ -155,7 +197,7 @@ export default function TeachersPage() {
             role: formData.role,
             is_class_teacher: formData.is_class_teacher,
             subjects: formData.subjects,
-            contact: formData.phone,
+            contact: formData.phone ? normalizePhone(formData.phone) : null,
             email: formData.email_id,
             status: formData.is_active ? 'Active' : 'Inactive'
           })
@@ -167,11 +209,70 @@ export default function TeachersPage() {
         } else {
           const error = await response.json();
           setValidationError(error.error || 'Failed to update teacher');
+          scrollToTop();
         }
       } catch (error) {
         console.error('Error updating teacher:', error);
         setValidationError('Failed to update teacher');
+        scrollToTop();
       }
+    }
+  };
+
+  const scrollToTop = () => {
+    if (modalBodyRef.current) modalBodyRef.current.scrollTop = 0;
+  };
+
+  // ============ STATUS TOGGLE (Issue 17) ============
+  const handleToggleStatus = async (teacher) => {
+    const currentStatus = teacher.status || (teacher.is_active ? 'Active' : 'Inactive');
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+
+    // Optimistic update
+    setTeachers((prev) =>
+      prev.map((t) =>
+        (t.id === teacher.id && t.teacher_id === teacher.teacher_id) || t.teacher_id === teacher.teacher_id
+          ? { ...t, status: newStatus, is_active: newStatus === 'Active' }
+          : t
+      )
+    );
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/teachers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacher_id: teacher.teacher_id || teacher.id,
+          status: newStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        // Revert
+        setTeachers((prev) =>
+          prev.map((t) =>
+            t.teacher_id === teacher.teacher_id
+              ? { ...t, status: currentStatus, is_active: currentStatus === 'Active' }
+              : t
+          )
+        );
+        const err = await response.json();
+        alert(`Failed to update: ${err.error || 'Unknown error'}`);
+        return;
+      }
+
+      fetchTeachers();
+    } catch (error) {
+      console.error('Toggle error:', error);
+      // Revert
+      setTeachers((prev) =>
+        prev.map((t) =>
+          t.teacher_id === teacher.teacher_id
+            ? { ...t, status: currentStatus, is_active: currentStatus === 'Active' }
+            : t
+        )
+      );
+      alert('Network error');
     }
   };
 
@@ -243,13 +344,21 @@ export default function TeachersPage() {
         section_2: teacher.section_2 || '',
         role: teacher.role || 'Teacher',
         is_class_teacher: teacher.is_class_teacher || false,
-        subjects: teacher.subjects || '',
+        subjects: Array.isArray(teacher.subjects)
+          ? teacher.subjects.join(', ')
+          : teacher.subjects || '',
         phone: teacher.contact || teacher.phone || '',
         email_id: teacher.email || teacher.email_id || '',
         is_active: teacher.status === 'Active' || teacher.is_active === true
       });
     }
     setIsModalOpen(true);
+  };
+
+  // ✅ FIX 14: live-strip phone to digits only, max 10
+  const handlePhoneChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setFormData((prev) => ({ ...prev, phone: digits }));
   };
 
   const filteredTeachers = Array.isArray(teachers) ? teachers.filter(t => {
@@ -355,7 +464,9 @@ export default function TeachersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredTeachers.map((teacher, idx) => (
+                  filteredTeachers.map((teacher, idx) => {
+                    const isActive = teacher.status === 'Active' || teacher.is_active === true;
+                    return (
                     <tr key={teacher.id || teacher.teacher_id || idx} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{teacher.id || teacher.teacher_id || '-'}</td>
                       <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">{teacher.name || teacher.full_name || '-'}</td>
@@ -368,13 +479,17 @@ export default function TeachersPage() {
                       <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{teacher.contact || teacher.phone || '-'}</td>
                       <td className="hidden xl:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.email || teacher.email_id || '-'}</td>
                       <td className="px-3 sm:px-4 py-3">
-                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap ${
-                          teacher.status === 'Active' || teacher.is_active === true 
-                            ? 'bg-green-500/20 text-green-400' 
-                            : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {teacher.status === 'Active' || teacher.is_active === true ? '● Active' : '○ Inactive'}
-                        </span>
+                        {/* ✅ FIX 17: clickable toggle */}
+                        <button
+                          onClick={() => handleToggleStatus(teacher)}
+                          className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition cursor-pointer ${
+                            isActive
+                              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                              : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          }`}
+                        >
+                          {isActive ? '● Active' : '○ Inactive'}
+                        </button>
                       </td>
                       <td className="px-3 sm:px-4 py-3">
                         <div className="flex gap-1.5 sm:gap-2">
@@ -393,7 +508,8 @@ export default function TeachersPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -417,6 +533,7 @@ export default function TeachersPage() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 sm:p-8 w-full max-w-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
+              ref={modalBodyRef}
             >
               <div className="flex justify-between mb-4 sm:mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">
@@ -479,16 +596,26 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+
+                {/* ✅ FIX 15: Class dropdown (was free-text input) */}
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Class ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 13"
+                  <label className="text-white/70 text-sm block mb-1">Class</label>
+                  <select
                     value={formData.class_id}
                     onChange={(e) => setFormData({...formData, class_id: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                  />
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40"
+                  >
+                    <option value="" style={{ color: '#111827', backgroundColor: '#ffffff' }}>
+                      — No class assigned —
+                    </option>
+                    {availableClasses.map((cls) => (
+                      <option key={cls.class_id} value={cls.class_id} style={{ color: '#111827', backgroundColor: '#ffffff' }}>
+                        {cls.class_name}{cls.section_name ? ` — ${cls.section_name}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Section 1</label>
                   <input
@@ -519,16 +646,22 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
+
+                {/* ✅ FIX 14: phone forced to 10 digits */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Contact Number</label>
                   <input
                     type="tel"
-                    placeholder="e.g., 9876543210"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10-digit mobile"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={handlePhoneChange}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
+                  <p className="text-xs text-white/40 mt-1">10 digits, starting with 6-9</p>
                 </div>
+
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Email *</label>
                   <input

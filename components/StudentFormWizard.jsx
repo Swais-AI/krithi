@@ -7,6 +7,9 @@ import { isValidName, isValidPhone, normalizePhone, isValidEmail } from '../lib/
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
+// ✅ FIX 19: Fixed section list (DB has no per-class section data)
+const SECTION_OPTIONS = ['A', 'B', 'C', 'D'];
+
 const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark' }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -31,7 +34,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   });
   const [errors, setErrors] = useState({});
 
-  // Fetch classes
   useEffect(() => {
     if (isOpen) fetchAvailableClasses();
   }, [isOpen]);
@@ -42,17 +44,13 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       if (response.ok) {
         const data = await response.json();
         setAvailableClasses(Array.isArray(data) ? data : []);
-        if (editData && editData.class_id) {
-          const found = data.find((c) => String(c.class_id) === String(editData.class_id));
-          // We don't rely on classInput anymore; select handles display
-        }
       }
     } catch (error) {
       console.error('Error fetching classes:', error);
     }
   };
 
-  // Reset or hydrate form
+  // Reset for new student
   useEffect(() => {
     if (isOpen && !editData) {
       setFormData({
@@ -79,6 +77,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   }, [isOpen, editData]);
 
+  // Hydrate for edit
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -114,11 +113,17 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Live-strip phone fields to digits + optional +
     let v = value;
+
+    // Phone fields: digits only
     if (name.includes('phone')) {
-      v = value.replace(/[^\d+]/g, '').slice(0, 15);
+      v = value.replace(/[^\d]/g, '').slice(0, 10);
     }
+    // ✅ FIX 20: Roll No: digits only, max 3
+    if (name === 'roll_no') {
+      v = value.replace(/[^\d]/g, '').slice(0, 3);
+    }
+
     setFormData((prev) => ({ ...prev, [name]: v }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
@@ -137,6 +142,10 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         e.student_email = 'Please enter a valid email address';
       if (formData.student_phone && !isValidPhone(formData.student_phone))
         e.student_phone = 'Enter a valid 10-digit mobile number';
+      // ✅ FIX 20: roll_no must be numeric if provided (already stripped to digits)
+      // just enforce max length (belt and braces)
+      if (formData.roll_no && String(formData.roll_no).length > 3)
+        e.roll_no = 'Roll number must be 1-3 digits';
     }
 
     if (stepNumber === 2) {
@@ -259,6 +268,16 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const borderColor = isDark ? 'border-white/10' : 'border-gray-200';
   const placeholderColor = isDark ? 'placeholder-white/60' : 'placeholder-gray-400';
 
+  // ✅ FIX 19: Build section options, including any legacy value not in the standard list
+  const sectionOptions = (() => {
+    const set = new Set(SECTION_OPTIONS);
+    if (formData.section && !set.has(formData.section)) {
+      // Preserve legacy/unknown value at the top so edit doesn't silently drop it
+      return [formData.section, ...SECTION_OPTIONS];
+    }
+    return SECTION_OPTIONS;
+  })();
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -345,7 +364,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         onChange={handleChange}
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.class_id ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500`}
                       >
-                        <option value="" style={{ color: "#111827", background: "#ffffff" }}>Select Class</option>
+                        <option value="" style={{ color: "#111827", backgroundColor: "#ffffff" }}>Select Class</option>
                         {availableClasses.map((cls) => (
                           <option key={cls.class_id} value={cls.class_id} style={{ color: "#111827", backgroundColor: '#ffffff' }}>
                             {cls.class_name}
@@ -355,28 +374,41 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                       </select>
                       {errors.class_id && <p className="mt-1 text-xs text-red-500">{errors.class_id}</p>}
                     </div>
+
+                    {/* ✅ FIX 19: Section dropdown */}
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Section *</label>
-                      <input
-                        type="text"
+                      <select
                         name="section"
                         value={formData.section}
                         onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., A"
-                      />
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500`}
+                      >
+                        <option value="" style={{ color: "#111827", backgroundColor: "#ffffff" }}>Select Section</option>
+                        {sectionOptions.map((sec) => (
+                          <option key={sec} value={sec} style={{ color: "#111827", backgroundColor: '#ffffff' }}>
+                            {sec}
+                          </option>
+                        ))}
+                      </select>
                       {errors.section && <p className="mt-1 text-xs text-red-500">{errors.section}</p>}
                     </div>
+
+                    {/* ✅ FIX 20: Roll No numeric */}
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Roll Number</label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={3}
                         name="roll_no"
                         value={formData.roll_no}
                         onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                        placeholder="e.g., 01"
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.roll_no ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
+                        placeholder="e.g., 1 (digits only)"
                       />
+                      {errors.roll_no && <p className="mt-1 text-xs text-red-500">{errors.roll_no}</p>}
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Student Phone</label>
@@ -407,7 +439,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* STEP 2 */}
+              {/* STEP 2 — unchanged */}
               {step === 2 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-6">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Parents Information</h4>
@@ -502,7 +534,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* STEP 3 */}
+              {/* STEP 3 — unchanged */}
               {step === 3 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
