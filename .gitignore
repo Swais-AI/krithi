@@ -123,3 +123,4 @@ aider.conf.yml
 # Generic AI config files
 *.ai.json
 .aiignore
+check-student.mjs
