@@ -51,11 +51,7 @@ export default function TeachersPage() {
       setLoading(true);
       const response = await fetch(`${API_BASE_URL}/teachers`);
       const data = await response.json();
-      if (Array.isArray(data)) {
-        setTeachers(data);
-      } else {
-        setTeachers([]);
-      }
+      setTeachers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching teachers:', error);
       setTeachers([]);
@@ -68,24 +64,12 @@ export default function TeachersPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/classes`);
       const data = await response.json();
-      if (Array.isArray(data)) {
-        // De-dupe by class_id (classes API may return multiple rows per class)
-        const seen = new Set();
-        const unique = [];
-        for (const c of data) {
-          if (!seen.has(c.class_id)) {
-            seen.add(c.class_id);
-            unique.push(c);
-          }
-        }
-        setAvailableClasses(unique);
-      }
+      setAvailableClasses(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching classes:', error);
     }
   };
 
-  // ============ VALIDATION ============
   const validateForm = () => {
     if (!formData.teacher_id.trim()) {
       setValidationError('Teacher ID is required');
@@ -107,17 +91,9 @@ export default function TeachersPage() {
       setValidationError('Please enter a valid email address');
       return false;
     }
-    // ✅ FIX 14: phone validation (required if filled)
     if (formData.phone && formData.phone.trim() !== '') {
       if (!isValidPhone(formData.phone)) {
         setValidationError('Enter a valid 10-digit mobile number (starting 6-9)');
-        return false;
-      }
-    }
-    // ✅ Class ID must be numeric if non-empty
-    if (formData.class_id && String(formData.class_id).trim() !== '') {
-      if (!/^\d+$/.test(String(formData.class_id).trim())) {
-        setValidationError('Class ID must be a number');
         return false;
       }
     }
@@ -126,15 +102,11 @@ export default function TeachersPage() {
   };
 
   const handleAdd = async () => {
-    if (!validateForm()) {
-      scrollToTop();
-      return;
-    }
+    if (!validateForm()) { scrollToTop(); return; }
     try {
-      const classIdValue =
-        formData.class_id && String(formData.class_id).trim() !== ''
-          ? parseInt(formData.class_id)
-          : null;
+      const classIdValue = formData.class_id && String(formData.class_id).trim() !== ''
+        ? parseInt(formData.class_id)
+        : null;
 
       const response = await fetch(`${API_BASE_URL}/teachers`, {
         method: 'POST',
@@ -172,16 +144,12 @@ export default function TeachersPage() {
   };
 
   const handleModify = async () => {
-    if (!validateForm()) {
-      scrollToTop();
-      return;
-    }
+    if (!validateForm()) { scrollToTop(); return; }
     if (selectedTeacher) {
       try {
-        const classIdValue =
-          formData.class_id && String(formData.class_id).trim() !== ''
-            ? parseInt(formData.class_id)
-            : null;
+        const classIdValue = formData.class_id && String(formData.class_id).trim() !== ''
+          ? parseInt(formData.class_id)
+          : null;
 
         const response = await fetch(`${API_BASE_URL}/teachers`, {
           method: 'PUT',
@@ -223,15 +191,13 @@ export default function TeachersPage() {
     if (modalBodyRef.current) modalBodyRef.current.scrollTop = 0;
   };
 
-  // ============ STATUS TOGGLE (Issue 17) ============
   const handleToggleStatus = async (teacher) => {
     const currentStatus = teacher.status || (teacher.is_active ? 'Active' : 'Inactive');
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
 
-    // Optimistic update
     setTeachers((prev) =>
       prev.map((t) =>
-        (t.id === teacher.id && t.teacher_id === teacher.teacher_id) || t.teacher_id === teacher.teacher_id
+        t.teacher_id === teacher.teacher_id
           ? { ...t, status: newStatus, is_active: newStatus === 'Active' }
           : t
       )
@@ -241,14 +207,10 @@ export default function TeachersPage() {
       const response = await fetch(`${API_BASE_URL}/teachers`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          teacher_id: teacher.teacher_id || teacher.id,
-          status: newStatus,
-        }),
+        body: JSON.stringify({ teacher_id: teacher.teacher_id || teacher.id, status: newStatus }),
       });
 
       if (!response.ok) {
-        // Revert
         setTeachers((prev) =>
           prev.map((t) =>
             t.teacher_id === teacher.teacher_id
@@ -260,11 +222,9 @@ export default function TeachersPage() {
         alert(`Failed to update: ${err.error || 'Unknown error'}`);
         return;
       }
-
       fetchTeachers();
     } catch (error) {
       console.error('Toggle error:', error);
-      // Revert
       setTeachers((prev) =>
         prev.map((t) =>
           t.teacher_id === teacher.teacher_id
@@ -288,9 +248,7 @@ export default function TeachersPage() {
     return false;
   };
 
-  const handleDelete = (id) => {
-    setDeleteTarget(id);
-  };
+  const handleDelete = (id) => setDeleteTarget(id);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -344,9 +302,7 @@ export default function TeachersPage() {
         section_2: teacher.section_2 || '',
         role: teacher.role || 'Teacher',
         is_class_teacher: teacher.is_class_teacher || false,
-        subjects: Array.isArray(teacher.subjects)
-          ? teacher.subjects.join(', ')
-          : teacher.subjects || '',
+        subjects: Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : teacher.subjects || '',
         phone: teacher.contact || teacher.phone || '',
         email_id: teacher.email || teacher.email_id || '',
         is_active: teacher.status === 'Active' || teacher.is_active === true
@@ -355,7 +311,6 @@ export default function TeachersPage() {
     setIsModalOpen(true);
   };
 
-  // ✅ FIX 14: live-strip phone to digits only, max 10
   const handlePhoneChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
     setFormData((prev) => ({ ...prev, phone: digits }));
@@ -454,15 +409,9 @@ export default function TeachersPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr>
-                    <td colSpan={12} className="text-center py-8 text-white/60">Loading...</td>
-                  </tr>
+                  <tr><td colSpan={12} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredTeachers.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="text-center py-8 text-white/60">
-                      {searchTerm ? 'No teachers match your search' : 'No teachers found'}
-                    </td>
-                  </tr>
+                  <tr><td colSpan={12} className="text-center py-8 text-white/60">{searchTerm ? 'No teachers match your search' : 'No teachers found'}</td></tr>
                 ) : (
                   filteredTeachers.map((teacher, idx) => {
                     const isActive = teacher.status === 'Active' || teacher.is_active === true;
@@ -479,7 +428,6 @@ export default function TeachersPage() {
                       <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{teacher.contact || teacher.phone || '-'}</td>
                       <td className="hidden xl:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.email || teacher.email_id || '-'}</td>
                       <td className="px-3 sm:px-4 py-3">
-                        {/* ✅ FIX 17: clickable toggle */}
                         <button
                           onClick={() => handleToggleStatus(teacher)}
                           className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition cursor-pointer ${
@@ -517,7 +465,6 @@ export default function TeachersPage() {
         </div>
       </div>
 
-      {/* Add/Modify Teacher Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -554,16 +501,18 @@ export default function TeachersPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                {/* ✅ FIX 72: Teacher ID is now read-only */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">
-                    Teacher ID * <span className="text-xs text-white/40">(T=Teacher, H=Headmaster)</span>
+                    Teacher ID * <span className="text-xs text-white/40">(auto-generated, read-only)</span>
                   </label>
                   <input
                     type="text"
                     placeholder="e.g., T001"
                     value={formData.teacher_id}
-                    onChange={(e) => setFormData({...formData, teacher_id: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
+                    readOnly
+                    disabled
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white/60 cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -597,7 +546,7 @@ export default function TeachersPage() {
                   />
                 </div>
 
-                {/* ✅ FIX 15: Class dropdown (was free-text input) */}
+                {/* ✅ FIX 73: Class dropdown uses grouped classes */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Class</label>
                   <select
@@ -608,9 +557,9 @@ export default function TeachersPage() {
                     <option value="" style={{ color: '#111827', backgroundColor: '#ffffff' }}>
                       — No class assigned —
                     </option>
-                    {availableClasses.map((cls) => (
-                      <option key={cls.class_id} value={cls.class_id} style={{ color: '#111827', backgroundColor: '#ffffff' }}>
-                        {cls.class_name}{cls.section_name ? ` — ${cls.section_name}` : ''}
+                    {availableClasses.map((cls, i) => (
+                      <option key={cls.class_id || i} value={cls.class_id} style={{ color: '#111827', backgroundColor: '#ffffff' }}>
+                        {cls.class_name}
                       </option>
                     ))}
                   </select>
@@ -646,8 +595,6 @@ export default function TeachersPage() {
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
                   />
                 </div>
-
-                {/* ✅ FIX 14: phone forced to 10 digits */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Contact Number</label>
                   <input
@@ -661,7 +608,6 @@ export default function TeachersPage() {
                   />
                   <p className="text-xs text-white/40 mt-1">10 digits, starting with 6-9</p>
                 </div>
-
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Email *</label>
                   <input

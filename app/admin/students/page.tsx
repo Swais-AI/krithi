@@ -23,26 +23,6 @@ export default function StudentsPage() {
   const [validationError, setValidationError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [lookupOpen, setLookupOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    admission_no: '',
-    name: '',
-    class: '',
-    section: '',
-    roll_no: '',
-    parent1_name: '',
-    parent1_phone: '',
-    parent1_email: '',
-    parent2_name: '',
-    parent2_phone: '',
-    parent2_email: '',
-    student_contact: '',
-    student_email: '',
-    guardian_name: '',
-    guardian_phone: '',
-    guardian_email: '',
-    status: 'Active'
-  });
-
   const [editingStudent, setEditingStudent] = useState(null);
 
   useEffect(() => {
@@ -52,10 +32,8 @@ export default function StudentsPage() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching students from:', `${API_BASE_URL}/students`);
       const response = await fetch(`${API_BASE_URL}/students`);
       const data = await response.json();
-      console.log('API Response:', data);
       
       if (Array.isArray(data)) {
         const mappedStudents = data.map(s => ({
@@ -64,8 +42,10 @@ export default function StudentsPage() {
           admission_no: s.admission_no,
           name: s.full_name || s.name,
           full_name: s.full_name || s.name,
-          class: s.class || s.class_id || '',
+          // ✅ FIX 68/74: prefer class_name from JOIN, fall back to class_id
+          class: s.class_name || s.class || '',
           class_id: s.class_id,
+          class_name: s.class_name || '',
           section: s.section || '',
           roll_no: s.roll_no || '',
           parent1_name: s.parent1_name || '',
@@ -85,7 +65,6 @@ export default function StudentsPage() {
         }));
         setStudents(mappedStudents);
       } else {
-        console.error('Expected array but got:', data);
         setStudents([]);
       }
     } catch (error) {
@@ -100,8 +79,6 @@ export default function StudentsPage() {
     const currentStatus = student.status || student.record_status || 'Active';
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
 
-    console.log(`🔄 Toggling ${student.admission_no}: ${currentStatus} → ${newStatus}`);
-
     setStudents((prev) =>
       prev.map((s) =>
         s.admission_no === student.admission_no
@@ -114,10 +91,7 @@ export default function StudentsPage() {
       const response = await fetch(`${API_BASE_URL}/students`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admission_no: student.admission_no,
-          status: newStatus,
-        }),
+        body: JSON.stringify({ admission_no: student.admission_no, status: newStatus }),
       });
 
       const data = await response.json();
@@ -133,10 +107,9 @@ export default function StudentsPage() {
         alert(`Failed to update: ${data.error || 'Unknown error'}`);
         return;
       }
-
-      console.log('✅ Toggle succeeded:', data);
       fetchStudents();
     } catch (error) {
+      console.error('Toggle error:', error);
       setStudents((prev) =>
         prev.map((s) =>
           s.admission_no === student.admission_no
@@ -144,31 +117,11 @@ export default function StudentsPage() {
             : s
         )
       );
-      console.error('❌ Toggle error:', error);
       alert('Network error');
     }
   };
 
   const resetForm = () => {
-    setFormData({
-      admission_no: '',
-      name: '',
-      class: '',
-      section: '',
-      roll_no: '',
-      parent1_name: '',
-      parent1_phone: '',
-      parent1_email: '',
-      parent2_name: '',
-      parent2_phone: '',
-      parent2_email: '',
-      student_contact: '',
-      student_email: '',
-      guardian_name: '',
-      guardian_phone: '',
-      guardian_email: '',
-      status: 'Active'
-    });
     setSelectedStudent(null);
     setValidationError('');
   };
@@ -182,32 +135,11 @@ export default function StudentsPage() {
     } else if (type === 'modify' && student) {
       setSelectedStudent(student);
       setEditingStudent(student);
-      setFormData({
-        admission_no: student.admission_no || student.student_id || '',
-        name: student.name || student.full_name || '',
-        class: student.class || student.class_id || '',
-        section: student.section || '',
-        roll_no: student.roll_no || '',
-        parent1_name: student.parent1_name || '',
-        parent1_phone: student.parent1_phone || '',
-        parent1_email: student.parent1_email || '',
-        parent2_name: student.parent2_name || '',
-        parent2_phone: student.parent2_phone || '',
-        parent2_email: student.parent2_email || '',
-        student_contact: student.student_phone || student.student_contact || '',
-        student_email: student.student_email || '',
-        guardian_name: student.guardian_name || '',
-        guardian_phone: student.guardian_phone || '',
-        guardian_email: student.guardian_email || '',
-        status: student.status || 'Active'
-      });
     }
     setIsModalOpen(true);
   };
 
-  const handleWizardSuccess = () => {
-    fetchStudents();
-  };
+  const handleWizardSuccess = () => fetchStudents();
 
   const handleWizardClose = () => {
     setIsModalOpen(false);
@@ -215,9 +147,7 @@ export default function StudentsPage() {
     resetForm();
   };
 
-  const handleDelete = (id) => {
-    setDeleteTarget(id);
-  };
+  const handleDelete = (id) => setDeleteTarget(id);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -236,7 +166,6 @@ export default function StudentsPage() {
     }
   };
 
-  // Called by ModifyLookupModal — returns false if not found
   const handleModifyLookup = (id) => {
     const student = students.find(
       s => s.admission_no === id || s.student_id === id || s.id === id
@@ -247,14 +176,25 @@ export default function StudentsPage() {
     return true;
   };
 
+  // ✅ FIX 74: search by class matches class NAME, not ID
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return s.name?.toLowerCase().includes(term);
     if (searchType === 'id') return s.admission_no?.toLowerCase().includes(term) || s.student_id?.toLowerCase().includes(term);
-    if (searchType === 'class') return String(s.class).toLowerCase().includes(term);
+    if (searchType === 'class') return (s.class_name || '').toLowerCase().includes(term);
     if (searchType === 'section') return s.section?.toLowerCase().includes(term);
     return true;
   }) : [];
+
+  // ✅ FIX 74: distinct class names for the filter dropdown
+  const uniqueClassNames = Array.from(
+    new Set(students.map((s) => (s.class_name || '').trim()).filter(Boolean))
+  ).sort((a, b) => {
+    const na = parseInt(a, 10);
+    const nb = parseInt(b, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
 
   const stats = {
     total: Array.isArray(students) ? students.length : 0,
@@ -273,7 +213,6 @@ export default function StudentsPage() {
           <p className="text-white/60 text-sm sm:text-base">Manage all students, track their progress, and update records</p>
         </div>
 
-        {/* Stat cards — stack on mobile, 3-col from md up */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-4 sm:p-6">
             <p className="text-white/80 text-sm">Total Students</p>
@@ -292,7 +231,6 @@ export default function StudentsPage() {
           </div>
         </div>
 
-        {/* Action buttons — stack on mobile */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mb-6">
           <button
             onClick={() => openModal('add')}
@@ -308,7 +246,6 @@ export default function StudentsPage() {
           </button>
         </div>
 
-        {/* Search — stacks on mobile: input on top, dropdown below */}
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
           <div className="flex-1 sm:min-w-[200px] relative">
             <input
@@ -357,9 +294,7 @@ export default function StudentsPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr>
-                    <td colSpan={16} className="text-center py-8 text-white/60">Loading...</td>
-                  </tr>
+                  <tr><td colSpan={16} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : filteredStudents.length === 0 ? (
                   <tr>
                     <td colSpan={16} className="text-center py-8 text-white/60">
@@ -371,7 +306,8 @@ export default function StudentsPage() {
                     <tr key={student.id || idx} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{student.admission_no || student.student_id || student.id}</td>
                       <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">{student.name || student.full_name}</td>
-                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.class || '-'}</td>
+                      {/* ✅ FIX 68: show class_name, not class_id */}
+                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.class_name || student.class || '-'}</td>
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.section || '-'}</td>
                       <td className="hidden md:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.roll_no || '-'}</td>
                       <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.parent1_name || '-'}</td>

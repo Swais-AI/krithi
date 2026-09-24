@@ -7,8 +7,7 @@ import { isValidName, isValidPhone, normalizePhone, isValidEmail } from '../lib/
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
-// ✅ FIX 19: Fixed section list (DB has no per-class section data)
-const SECTION_OPTIONS = ['A', 'B', 'C', 'D'];
+const FALLBACK_SECTIONS = ['A', 'B', 'C', 'D'];
 
 const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark' }) => {
   const [step, setStep] = useState(1);
@@ -50,26 +49,14 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   };
 
-  // Reset for new student
   useEffect(() => {
     if (isOpen && !editData) {
       setFormData({
-        admission_no: '',
-        full_name: '',
-        class_id: '',
-        section: '',
-        roll_no: '',
-        student_phone: '',
-        student_email: '',
-        parent1_name: '',
-        parent1_phone: '',
-        parent1_email: '',
-        parent2_name: '',
-        parent2_phone: '',
-        parent2_email: '',
-        guardian_name: '',
-        guardian_phone: '',
-        guardian_email: '',
+        admission_no: '', full_name: '', class_id: '', section: '', roll_no: '',
+        student_phone: '', student_email: '',
+        parent1_name: '', parent1_phone: '', parent1_email: '',
+        parent2_name: '', parent2_phone: '', parent2_email: '',
+        guardian_name: '', guardian_phone: '', guardian_email: '',
       });
       setStep(1);
       setErrors({});
@@ -77,7 +64,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     }
   }, [isOpen, editData]);
 
-  // Hydrate for edit
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -114,16 +100,18 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const handleChange = (e) => {
     const { name, value } = e.target;
     let v = value;
-
-    // Phone fields: digits only
     if (name.includes('phone')) {
       v = value.replace(/[^\d]/g, '').slice(0, 10);
     }
-    // ✅ FIX 20: Roll No: digits only, max 3
     if (name === 'roll_no') {
       v = value.replace(/[^\d]/g, '').slice(0, 3);
     }
-
+    // ✅ FIX 73: when class changes, reset section so user picks from new list
+    if (name === 'class_id') {
+      setFormData((prev) => ({ ...prev, class_id: v, section: '' }));
+      if (errors[name] || errors.section) setErrors((prev) => ({ ...prev, [name]: '', section: '' }));
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: v }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
@@ -142,8 +130,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
         e.student_email = 'Please enter a valid email address';
       if (formData.student_phone && !isValidPhone(formData.student_phone))
         e.student_phone = 'Enter a valid 10-digit mobile number';
-      // ✅ FIX 20: roll_no must be numeric if provided (already stripped to digits)
-      // just enforce max length (belt and braces)
       if (formData.roll_no && String(formData.roll_no).length > 3)
         e.roll_no = 'Roll number must be 1-3 digits';
     }
@@ -152,14 +138,11 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       if (!formData.parent1_name) e.parent1_name = 'Parent 1 Name is required';
       else if (!isValidName(formData.parent1_name))
         e.parent1_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
-
       if (!formData.parent1_phone) e.parent1_phone = 'Parent 1 Phone is required';
       else if (!isValidPhone(formData.parent1_phone))
         e.parent1_phone = 'Enter a valid 10-digit mobile number';
-
       if (formData.parent1_email && !isValidEmail(formData.parent1_email))
         e.parent1_email = 'Please enter a valid email address';
-
       if (formData.parent2_name && !isValidName(formData.parent2_name))
         e.parent2_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
       if (formData.parent2_phone && !isValidPhone(formData.parent2_phone))
@@ -181,29 +164,16 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
     return Object.keys(e).length === 0;
   };
 
-  const nextStep = () => {
-    if (validateStep(step)) setStep(step + 1);
-  };
+  const nextStep = () => { if (validateStep(step)) setStep(step + 1); };
   const prevStep = () => setStep(step - 1);
 
   const handleCancel = () => {
     setFormData({
-      admission_no: '',
-      full_name: '',
-      class_id: '',
-      section: '',
-      roll_no: '',
-      student_phone: '',
-      student_email: '',
-      parent1_name: '',
-      parent1_phone: '',
-      parent1_email: '',
-      parent2_name: '',
-      parent2_phone: '',
-      parent2_email: '',
-      guardian_name: '',
-      guardian_phone: '',
-      guardian_email: '',
+      admission_no: '', full_name: '', class_id: '', section: '', roll_no: '',
+      student_phone: '', student_email: '',
+      parent1_name: '', parent1_phone: '', parent1_email: '',
+      parent2_name: '', parent2_phone: '', parent2_email: '',
+      guardian_name: '', guardian_phone: '', guardian_email: '',
     });
     setStep(1);
     setErrors({});
@@ -268,14 +238,19 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const borderColor = isDark ? 'border-white/10' : 'border-gray-200';
   const placeholderColor = isDark ? 'placeholder-white/60' : 'placeholder-gray-400';
 
-  // ✅ FIX 19: Build section options, including any legacy value not in the standard list
-  const sectionOptions = (() => {
-    const set = new Set(SECTION_OPTIONS);
-    if (formData.section && !set.has(formData.section)) {
-      // Preserve legacy/unknown value at the top so edit doesn't silently drop it
-      return [formData.section, ...SECTION_OPTIONS];
+  // ✅ FIX 73: derive sections from selected class, fall back to standard list
+  const selectedClass = availableClasses.find(
+    (c) => String(c.class_id) === String(formData.class_id)
+  );
+  const sectionsForSelectedClass = (() => {
+    const list = selectedClass?.sections && selectedClass.sections.length > 0
+      ? [...selectedClass.sections]
+      : [...FALLBACK_SECTIONS];
+    // Preserve existing legacy value (edit case)
+    if (formData.section && !list.includes(formData.section)) {
+      return [formData.section, ...list];
     }
-    return SECTION_OPTIONS;
+    return list;
   })();
 
   return (
@@ -295,7 +270,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
             className={`w-full max-w-3xl ${bgColor} rounded-2xl shadow-2xl max-h-[90vh] flex flex-col`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className={`flex items-center justify-between px-6 py-4 border-b ${borderColor}`}>
               <div>
                 <h3 className={`text-xl font-semibold ${textColor}`}>
@@ -308,7 +282,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
               </button>
             </div>
 
-            {/* Progress */}
             <div className="px-6 pt-4">
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-xs font-medium ${step >= 1 ? 'text-blue-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Student Info</span>
@@ -323,9 +296,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
               </div>
             </div>
 
-            {/* Form */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {/* STEP 1 */}
               {step === 1 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Student Information</h4>
@@ -356,6 +327,8 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                       />
                       {errors.full_name && <p className="mt-1 text-xs text-red-500">{errors.full_name}</p>}
                     </div>
+
+                    {/* ✅ FIX 73/76: Class dropdown shows only class_name (not class_name + section) */}
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Class *</label>
                       <select
@@ -365,27 +338,29 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                         className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.class_id ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500`}
                       >
                         <option value="" style={{ color: "#111827", backgroundColor: "#ffffff" }}>Select Class</option>
-                        {availableClasses.map((cls) => (
-                          <option key={cls.class_id} value={cls.class_id} style={{ color: "#111827", backgroundColor: '#ffffff' }}>
+                        {availableClasses.map((cls, i) => (
+                          <option key={cls.class_id || i} value={cls.class_id} style={{ color: "#111827", backgroundColor: '#ffffff' }}>
                             {cls.class_name}
-                            {cls.section_name ? ` - ${cls.section_name}` : ''}
                           </option>
                         ))}
                       </select>
                       {errors.class_id && <p className="mt-1 text-xs text-red-500">{errors.class_id}</p>}
                     </div>
 
-                    {/* ✅ FIX 19: Section dropdown */}
+                    {/* ✅ FIX 73: Section dropdown depends on selected class */}
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Section *</label>
                       <select
                         name="section"
                         value={formData.section}
                         onChange={handleChange}
-                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500`}
+                        disabled={!formData.class_id}
+                        className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.section ? 'border-red-500' : inputBorder} rounded-lg ${inputText} focus:outline-none focus:border-blue-500 ${!formData.class_id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        <option value="" style={{ color: "#111827", backgroundColor: "#ffffff" }}>Select Section</option>
-                        {sectionOptions.map((sec) => (
+                        <option value="" style={{ color: "#111827", backgroundColor: "#ffffff" }}>
+                          {formData.class_id ? 'Select Section' : 'Select Class first'}
+                        </option>
+                        {sectionsForSelectedClass.map((sec) => (
                           <option key={sec} value={sec} style={{ color: "#111827", backgroundColor: '#ffffff' }}>
                             {sec}
                           </option>
@@ -394,7 +369,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                       {errors.section && <p className="mt-1 text-xs text-red-500">{errors.section}</p>}
                     </div>
 
-                    {/* ✅ FIX 20: Roll No numeric */}
                     <div>
                       <label className={`block text-sm font-medium ${labelColor}`}>Roll Number</label>
                       <input
@@ -439,7 +413,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* STEP 2 — unchanged */}
               {step === 2 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-6">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>Parents Information</h4>
@@ -534,7 +507,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* STEP 3 — unchanged */}
               {step === 3 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="space-y-4">
                   <h4 className={`text-sm font-medium ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
@@ -582,7 +554,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                 </motion.div>
               )}
 
-              {/* Footer */}
               <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 pt-4 border-t border-white/10">
                 <div className="flex gap-3">
                   {step > 1 && (

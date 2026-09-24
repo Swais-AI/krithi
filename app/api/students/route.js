@@ -5,9 +5,6 @@ import { sql } from '../../../lib/db';
 // HELPERS
 // ============================================================================
 
-/**
- * Normalize Indian phone to 10 digits, or null if invalid.
- */
 function normalizePhone(phone) {
   if (!phone) return null;
   const digits = String(phone).replace(/\D/g, '');
@@ -26,26 +23,12 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
 
-/**
- * Build the list of parents/guardians that should be reconciled into
- * sgs_parent_master + sgs_parent_student_map.
- *
- * Rule (per Bhuvan): "Whichever have an email — no email, no row."
- * So we skip any slot where email is missing or invalid.
- *
- * Relationship mapping:
- *   parent1  -> 'parent'
- *   parent2  -> 'parent'
- *   guardian -> 'guardian'
- *   (Schema has no CHECK constraint; existing rows use 'father'/'mother'/'parent')
- */
 function buildParentsFromPayload(body) {
   const list = [];
-
   const tryAdd = (name, email, phone, relationship) => {
     if (!email || !String(email).trim()) return;
-    if (!isValidEmail(email)) return; // skip invalid emails silently
-    if (!name || !String(name).trim()) return; // full_name is NOT NULL in parent_master
+    if (!isValidEmail(email)) return;
+    if (!name || !String(name).trim()) return;
     list.push({
       name: String(name).trim(),
       email: String(email).trim().toLowerCase(),
@@ -53,30 +36,13 @@ function buildParentsFromPayload(body) {
       relationship,
     });
   };
-
   tryAdd(body.parent1_name, body.parent1_email, body.parent1_phone, 'parent');
   tryAdd(body.parent2_name, body.parent2_email, body.parent2_phone, 'parent');
   tryAdd(body.guardian_name, body.guardian_email, body.guardian_phone, 'guardian');
-
   return list;
 }
 
-/**
- * Reconcile the parent + mapping tables for a given student.
- * MUST be called inside a sql.begin() transaction.
- *
- * Steps:
- *   1. Upsert each parent into sgs_parent_master by email (unique key),
- *      reuse existing parent_id if the email already exists.
- *   2. Delete existing map rows for this student whose parent_id is not
- *      in the new set (removes parents that were taken off the form).
- *   3. Insert/upsert map rows (parent_id, student_id) with relationship_type.
- *
- * Note: we never DELETE from sgs_parent_master. Orphaned parents (no more map
- * rows) are left in place; Bhuvan/Swathi can clean up manually if needed.
- */
 async function reconcileParents(tx, studentId, parents) {
-  // ---- Step 1: upsert parents by email ----
   const parentRefs = [];
   for (const p of parents) {
     const rows = await tx`
@@ -93,7 +59,6 @@ async function reconcileParents(tx, studentId, parents) {
     }
   }
 
-  // ---- Step 2: remove map rows for parents no longer in the payload ----
   if (parentRefs.length > 0) {
     const keepIds = parentRefs.map((r) => r.parent_id);
     await tx`
@@ -102,15 +67,12 @@ async function reconcileParents(tx, studentId, parents) {
         AND parent_id NOT IN ${tx(keepIds)}
     `;
   } else {
-    // No valid parents in payload — remove all mappings for this student.
-    // Rare: user cleared all parent/guardian fields.
     await tx`
       DELETE FROM sgs_parent_student_map
       WHERE student_id = ${studentId}
     `;
   }
 
-  // ---- Step 3: insert/upsert map rows ----
   for (const ref of parentRefs) {
     await tx`
       INSERT INTO sgs_parent_student_map (parent_id, student_id, relationship_type)
@@ -124,24 +86,26 @@ async function reconcileParents(tx, studentId, parents) {
 }
 
 // ============================================================================
-// GET /api/students
+// GET /api/students — now includes class_name (Issue 68, 74)
 // ============================================================================
 
 export async function GET() {
   try {
     const students = await sql`
       SELECT 
-        admission_no, full_name, class_id, section, roll_no,
-        parent1_name, parent1_phone, parent1_email,
-        parent2_name, parent2_phone, parent2_email,
-        student_phone, student_email,
-        guardian_name, guardian_phone, guardian_email,
-        record_status
-      FROM sgs_student_master
-      WHERE record_status IN ('Active', 'Inactive')
-        AND full_name IS NOT NULL
-        AND full_name != ''
-      ORDER BY admission_no
+        s.admission_no, s.full_name, s.class_id, s.section, s.roll_no,
+        s.parent1_name, s.parent1_phone, s.parent1_email,
+        s.parent2_name, s.parent2_phone, s.parent2_email,
+        s.student_phone, s.student_email,
+        s.guardian_name, s.guardian_phone, s.guardian_email,
+        s.record_status,
+        c.class_name
+      FROM sgs_student_master s
+      LEFT JOIN sgs_class_master c ON c.class_id = s.class_id
+      WHERE s.record_status IN ('Active', 'Inactive')
+        AND s.full_name IS NOT NULL
+        AND s.full_name != ''
+      ORDER BY s.admission_no
     `;
     return NextResponse.json(students);
   } catch (error) {
@@ -151,7 +115,7 @@ export async function GET() {
 }
 
 // ============================================================================
-// POST /api/students — create student + reconcile parents (in transaction)
+// POST /api/students
 // ============================================================================
 
 export async function POST(request) {
@@ -172,23 +136,17 @@ export async function POST(request) {
       );
     }
 
-    // Validate class exists
     const classCheck = await sql`
       SELECT class_id FROM sgs_class_master
       WHERE class_id = ${class_id} AND record_status = 'Active'
     `;
     if (classCheck.length === 0) {
-      const allClasses = await sql`
-        SELECT class_id, class_name FROM sgs_class_master
-        WHERE record_status = 'Active' ORDER BY class_id
-      `;
       return NextResponse.json(
-        { error: `Invalid class. Available: ${allClasses.map((c) => `${c.class_id} (${c.class_name})`).join(', ')}` },
+        { error: `Class ID ${class_id} does not exist` },
         { status: 400 }
       );
     }
 
-    // Duplicate check
     const existing = await sql`
       SELECT admission_no FROM sgs_student_master WHERE admission_no = ${admission_no}
     `;
@@ -198,7 +156,6 @@ export async function POST(request) {
 
     const parents = buildParentsFromPayload(body);
 
-    // ---- Atomic write: student + parents + map ----
     const result = await sql.begin(async (tx) => {
       const studentRows = await tx`
         INSERT INTO sgs_student_master (
@@ -235,39 +192,34 @@ export async function POST(request) {
 }
 
 // ============================================================================
-// PUT /api/students — update student, or status-only toggle
+// PUT /api/students
 // ============================================================================
 
 export async function PUT(request) {
   try {
     const body = await request.json();
-    console.log('PUT /api/students body:', body);
-
     const { admission_no, status } = body;
 
     if (!admission_no) {
       return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
     }
 
-    // ============== STATUS-ONLY TOGGLE ==============
+    // STATUS-ONLY TOGGLE
     if (status !== undefined && !body.full_name) {
       const newStatus = status === 'Active' ? 'Active' : 'Inactive';
-
       const result = await sql`
         UPDATE sgs_student_master
         SET record_status = ${newStatus}
         WHERE admission_no = ${admission_no}
         RETURNING *
       `;
-
       if (result.length === 0) {
         return NextResponse.json({ error: 'Student not found' }, { status: 404 });
       }
-
       return NextResponse.json({ success: true, student: result[0] });
     }
 
-    // ============== FULL UPDATE ==============
+    // FULL UPDATE
     const {
       full_name, class_id, section, roll_no,
       parent1_name, parent1_phone, parent1_email,
@@ -331,7 +283,7 @@ export async function PUT(request) {
 }
 
 // ============================================================================
-// DELETE /api/students — soft delete (record_status = 'Deleted')
+// DELETE /api/students
 // ============================================================================
 
 export async function DELETE(request) {
