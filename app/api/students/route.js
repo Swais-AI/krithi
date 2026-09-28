@@ -23,6 +23,46 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
 
+/**
+ * ✅ Gmail-only rule — matches DB CHECK constraints:
+ *   chk_student_email, chk_guardian_email
+ * Returns true if value is null/empty (nullable column) OR ends @gmail.com.
+ */
+function isGmailEmail(email) {
+  if (!email || !String(email).trim()) return true;
+  return /^[^\s@]+@gmail\.com$/i.test(String(email).trim());
+}
+
+/**
+ * Convert a Postgres error to a user-friendly message.
+ * Never leak raw error.message to the client.
+ */
+function friendlyDbError(error) {
+  const msg = String(error?.message || '');
+  const code = error?.code;
+
+  if (code === '23505' || /duplicate key/i.test(msg)) {
+    if (msg.includes('student_email')) return 'This student email is already used by another student.';
+    if (msg.includes('admission_no')) return 'A student with this admission number already exists.';
+    if (msg.includes('sgs_parent_master_email_key')) return 'This parent email conflicts with an existing parent record.';
+    return 'A duplicate record was detected. Please check the values and try again.';
+  }
+
+  if (code === '23514' || /violates check constraint/i.test(msg)) {
+    if (msg.includes('chk_student_email')) return 'Student email must be a @gmail.com address.';
+    if (msg.includes('chk_guardian_email')) return 'Guardian email must be a @gmail.com address.';
+    return 'One of the values does not meet the required format.';
+  }
+
+  if (code === '23503' || /foreign key/i.test(msg)) {
+    if (msg.includes('class_id')) return 'The selected class does not exist.';
+    return 'A referenced record does not exist.';
+  }
+
+  // Fallback
+  return 'Something went wrong while saving. Please try again or contact support.';
+}
+
 function buildParentsFromPayload(body) {
   const list = [];
   const tryAdd = (name, email, phone, relationship) => {
@@ -86,7 +126,7 @@ async function reconcileParents(tx, studentId, parents) {
 }
 
 // ============================================================================
-// GET /api/students — now includes class_name (Issue 68, 74)
+// GET /api/students
 // ============================================================================
 
 export async function GET() {
@@ -129,6 +169,7 @@ export async function POST(request) {
       guardian_name, guardian_phone, guardian_email,
     } = body;
 
+    // ---- Required fields ----
     if (!admission_no || !full_name || !class_id || !section) {
       return NextResponse.json(
         { error: 'Student ID, Name, Class and Section are required' },
@@ -136,26 +177,64 @@ export async function POST(request) {
       );
     }
 
+    // ---- Class existence ----
     const classCheck = await sql`
       SELECT class_id FROM sgs_class_master
       WHERE class_id = ${class_id} AND record_status = 'Active'
     `;
     if (classCheck.length === 0) {
       return NextResponse.json(
-        { error: `Class ID ${class_id} does not exist` },
+        { error: `Class ID ${class_id} does not exist.` },
         { status: 400 }
       );
     }
 
+    // ---- Duplicate admission_no ----
     const existing = await sql`
       SELECT admission_no FROM sgs_student_master WHERE admission_no = ${admission_no}
     `;
     if (existing.length > 0) {
-      return NextResponse.json({ error: `Student ID ${admission_no} already exists` }, { status: 400 });
+      return NextResponse.json(
+        { error: `Student ID ${admission_no} already exists. Please refresh the form to get a new ID.` },
+        { status: 400 }
+      );
     }
 
+    // ---- ✅ Gmail-only validation (student_email, guardian_email) ----
+    if (student_email && !isGmailEmail(student_email)) {
+      return NextResponse.json(
+        { error: 'Student email must be a @gmail.com address.' },
+        { status: 400 }
+      );
+    }
+    if (guardian_email && !isGmailEmail(guardian_email)) {
+      return NextResponse.json(
+        { error: 'Guardian email must be a @gmail.com address.' },
+        { status: 400 }
+      );
+    }
+
+    // ---- ✅ Duplicate student_email check (across Active + Inactive) ----
+    if (student_email && String(student_email).trim()) {
+      const dupe = await sql`
+        SELECT admission_no, full_name
+        FROM sgs_student_master
+        WHERE LOWER(student_email) = LOWER(${String(student_email).trim()})
+          AND record_status IN ('Active', 'Inactive')
+        LIMIT 1
+      `;
+      if (dupe.length > 0) {
+        return NextResponse.json(
+          { error: `This student email is already used by ${dupe[0].admission_no}${dupe[0].full_name ? ` (${dupe[0].full_name})` : ''}. Each student must have a unique email.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // ---- Parent payload ----
     const parents = buildParentsFromPayload(body);
 
+    // ---- Insert student + reconcile parents ----
     const result = await sql.begin(async (tx) => {
       const studentRows = await tx`
         INSERT INTO sgs_student_master (
@@ -187,7 +266,10 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error adding student:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: friendlyDbError(error) },
+      { status: 500 }
+    );
   }
 }
 
@@ -234,7 +316,39 @@ export async function PUT(request) {
         WHERE class_id = ${class_id} AND record_status = 'Active'
       `;
       if (classCheck.length === 0) {
-        return NextResponse.json({ error: `Class ID ${class_id} does not exist` }, { status: 400 });
+        return NextResponse.json({ error: `Class ID ${class_id} does not exist.` }, { status: 400 });
+      }
+    }
+
+    // ---- ✅ Gmail-only validation ----
+    if (student_email && !isGmailEmail(student_email)) {
+      return NextResponse.json(
+        { error: 'Student email must be a @gmail.com address.' },
+        { status: 400 }
+      );
+    }
+    if (guardian_email && !isGmailEmail(guardian_email)) {
+      return NextResponse.json(
+        { error: 'Guardian email must be a @gmail.com address.' },
+        { status: 400 }
+      );
+    }
+
+    // ---- ✅ Duplicate student_email check (exclude self) ----
+    if (student_email && String(student_email).trim()) {
+      const dupe = await sql`
+        SELECT admission_no, full_name
+        FROM sgs_student_master
+        WHERE LOWER(student_email) = LOWER(${String(student_email).trim()})
+          AND admission_no != ${admission_no}
+          AND record_status IN ('Active', 'Inactive')
+        LIMIT 1
+      `;
+      if (dupe.length > 0) {
+        return NextResponse.json(
+          { error: `This student email is already used by ${dupe[0].admission_no}${dupe[0].full_name ? ` (${dupe[0].full_name})` : ''}. Each student must have a unique email.` },
+          { status: 400 }
+        );
       }
     }
 
@@ -278,7 +392,10 @@ export async function PUT(request) {
     if (error.message === 'Student not found') {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: friendlyDbError(error) },
+      { status: 500 }
+    );
   }
 }
 
@@ -301,6 +418,9 @@ export async function DELETE(request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting student:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: friendlyDbError(error) },
+      { status: 500 }
+    );
   }
 }

@@ -8,7 +8,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ModifyLookupModal from '../../../components/ModifyLookupModal';
+import AlertModal from '../../../components/AlertModal';
 import { isValidPhone, normalizePhone } from '../../../lib/validators';
+import { formatClassName } from '../../../lib/format-class-name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -22,8 +24,14 @@ export default function TeachersPage() {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [lookupOpen, setLookupOpen] = useState(false);
+    const [lookupOpen, setLookupOpen] = useState(false);
   const modalBodyRef = useRef(null);
+  const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
+
+  const showAlert = (message, variant = 'error', title = 'Error') =>
+    setAlertState({ isOpen: true, title, message, variant });
+  const closeAlert = () =>
+    setAlertState({ isOpen: false, title: '', message: '', variant: 'error' });
 
   const [formData, setFormData] = useState({
     teacher_id: '',
@@ -219,7 +227,7 @@ export default function TeachersPage() {
           )
         );
         const err = await response.json();
-        alert(`Failed to update: ${err.error || 'Unknown error'}`);
+        showAlert(err.error || 'Failed to update status', 'error', 'Update Failed');
         return;
       }
       fetchTeachers();
@@ -232,7 +240,7 @@ export default function TeachersPage() {
             : t
         )
       );
-      alert('Network error');
+      showAlert('Network error. Please try again.', 'error', 'Network Error');
     }
   };
 
@@ -257,7 +265,7 @@ export default function TeachersPage() {
       fetchTeachers();
     } catch (error) {
       console.error('Error deleting teacher:', error);
-      alert('An error occurred');
+      showAlert('Could not delete the teacher. Please try again.', 'error', 'Delete Failed');
     } finally {
       setDeleteTarget(null);
     }
@@ -421,7 +429,14 @@ export default function TeachersPage() {
                       <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">{teacher.name || teacher.full_name || '-'}</td>
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.subject || teacher.subject_name || '-'}</td>
                       <td className="hidden md:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.qualification || '-'}</td>
-                      <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.class_id || '-'}</td>
+                      <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">
+                        {teacher.class_id
+                          ? formatClassName(
+                              availableClasses.find(c => String(c.class_id) === String(teacher.class_id))?.class_name
+                              || teacher.class_id
+                           )
+                          : '-'}
+                      </td>
                       <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.section_1 || '-'}</td>
                       <td className="hidden xl:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.section_2 || '-'}</td>
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{teacher.role || 'Teacher'}</td>
@@ -559,7 +574,7 @@ export default function TeachersPage() {
                     </option>
                     {availableClasses.map((cls, i) => (
                       <option key={cls.class_id || i} value={cls.class_id} style={{ color: '#111827', backgroundColor: '#ffffff' }}>
-                        {cls.class_name}
+                        {formatClassName(cls.class_name)}
                       </option>
                     ))}
                   </select>
@@ -689,6 +704,13 @@ export default function TeachersPage() {
         variant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+        <AlertModal
+        isOpen={alertState.isOpen}
+        title={alertState.title}
+        message={alertState.message}
+        variant={alertState.variant}
+        onClose={closeAlert}
       />
     </div>
   );

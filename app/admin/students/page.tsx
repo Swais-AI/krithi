@@ -9,6 +9,8 @@ import {
 import StudentFormWizard from '../../../components/StudentFormWizard';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ModifyLookupModal from '../../../components/ModifyLookupModal';
+import AlertModal from '../../../components/AlertModal';
+import { formatClassName } from '../../../lib/format-class-name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -24,6 +26,12 @@ export default function StudentsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [lookupOpen, setLookupOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
+  const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
+
+  const showAlert = (message, variant = 'error', title = 'Error') =>
+    setAlertState({ isOpen: true, title, message, variant });
+  const closeAlert = () =>
+    setAlertState({ isOpen: false, title: '', message: '', variant: 'error' });
 
   useEffect(() => {
     fetchStudents();
@@ -42,7 +50,6 @@ export default function StudentsPage() {
           admission_no: s.admission_no,
           name: s.full_name || s.name,
           full_name: s.full_name || s.name,
-          // ✅ FIX 68/74: prefer class_name from JOIN, fall back to class_id
           class: s.class_name || s.class || '',
           class_id: s.class_id,
           class_name: s.class_name || '',
@@ -104,7 +111,7 @@ export default function StudentsPage() {
               : s
           )
         );
-        alert(`Failed to update: ${data.error || 'Unknown error'}`);
+        showAlert(data.error || 'Failed to update status', 'error', 'Update Failed');
         return;
       }
       fetchStudents();
@@ -117,7 +124,7 @@ export default function StudentsPage() {
             : s
         )
       );
-      alert('Network error');
+      showAlert('Network error. Please try again.', 'error', 'Network Error');
     }
   };
 
@@ -156,11 +163,11 @@ export default function StudentsPage() {
       if (response.ok) {
         fetchStudents();
       } else {
-        alert('Failed to delete student');
+        showAlert('Could not delete the student. Please try again.', 'error', 'Delete Failed');
       }
     } catch (error) {
       console.error('Error deleting student:', error);
-      alert('An error occurred');
+      showAlert('An error occurred while deleting the student.', 'error', 'Error');
     } finally {
       setDeleteTarget(null);
     }
@@ -176,7 +183,6 @@ export default function StudentsPage() {
     return true;
   };
 
-  // ✅ FIX 74: search by class matches class NAME, not ID
   const filteredStudents = Array.isArray(students) ? students.filter(s => {
     const term = searchTerm.toLowerCase();
     if (searchType === 'name') return s.name?.toLowerCase().includes(term);
@@ -186,7 +192,6 @@ export default function StudentsPage() {
     return true;
   }) : [];
 
-  // ✅ FIX 74: distinct class names for the filter dropdown
   const uniqueClassNames = Array.from(
     new Set(students.map((s) => (s.class_name || '').trim()).filter(Boolean))
   ).sort((a, b) => {
@@ -306,8 +311,12 @@ export default function StudentsPage() {
                     <tr key={student.id || idx} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{student.admission_no || student.student_id || student.id}</td>
                       <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">{student.name || student.full_name}</td>
-                      {/* ✅ FIX 68: show class_name, not class_id */}
-                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.class_name || student.class || '-'}</td>
+                      {/* ✅ Class name is formatted: "1" -> "1st Grade" */}
+                      <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">
+                        {student.class_name
+                          ? formatClassName(student.class_name)
+                          : (student.class ? formatClassName(student.class) : '-')}
+                      </td>
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.section || '-'}</td>
                       <td className="hidden md:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.roll_no || '-'}</td>
                       <td className="hidden lg:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{student.parent1_name || '-'}</td>
@@ -383,6 +392,14 @@ export default function StudentsPage() {
         variant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <AlertModal
+        isOpen={alertState.isOpen}
+        title={alertState.title}
+        message={alertState.message}
+        variant={alertState.variant}
+        onClose={closeAlert}
       />
     </div>
   );
