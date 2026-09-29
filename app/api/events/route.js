@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sql } from '../../../lib/db';
 
+// ============================================================================
+// GET — return BOTH Active + Inactive. Graceful if table doesn't exist.
+// ============================================================================
+
 export async function GET() {
   try {
     const events = await sql`
@@ -13,14 +17,14 @@ export async function GET() {
         applicable_class,
         record_status as status
       FROM sgs_events
-      WHERE record_status = 'Active'
-      ORDER BY event_date DESC
+      WHERE record_status IN ('Active', 'Inactive')
+      ORDER BY event_date DESC, event_id DESC
     `;
     return NextResponse.json(events);
   } catch (error) {
-    // Table may not exist yet — return empty array so UI doesn't break
-    if (error.message && error.message.includes('does not exist')) {
-      console.warn('sgs_events table does not exist yet');
+    // Table might not exist yet — return empty instead of crashing
+    if (error.code === '42P01') {
+      console.log('sgs_events table does not exist yet');
       return NextResponse.json([], { status: 200 });
     }
     console.error('Database error:', error);
@@ -28,14 +32,14 @@ export async function GET() {
   }
 }
 
+// ============================================================================
+// POST — insert OR update
+// ============================================================================
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { id, title, message, date, type, applicable_class } = body;
-
-    if (!title || !message) {
-      return NextResponse.json({ error: 'Title and message are required' }, { status: 400 });
-    }
+    const { id, title, message, date, applicable_class, type } = body;
 
     if (id) {
       const result = await sql`
@@ -44,8 +48,8 @@ export async function POST(request) {
           event_title = ${title},
           event_description = ${message},
           event_date = ${date},
-          event_type = ${type || 'event'},
-          applicable_class = ${applicable_class || 'all'}
+          applicable_class = ${applicable_class || 'all'},
+          event_type = ${type || 'event'}
         WHERE event_id = ${id}
         RETURNING *
       `;
@@ -57,17 +61,67 @@ export async function POST(request) {
 
     const result = await sql`
       INSERT INTO sgs_events (
-        event_title, event_description, event_date, event_type, applicable_class, record_status
+        event_title, event_description, event_date, applicable_class, event_type, record_status
       ) VALUES (
-        ${title}, ${message}, ${date}, ${type || 'event'}, ${applicable_class || 'all'}, 'Active'
+        ${title}, ${message}, ${date}, ${applicable_class || 'all'}, ${type || 'event'}, 'Active'
       ) RETURNING *
     `;
     return NextResponse.json({ success: true, event: result[0], message: 'Event created successfully' }, { status: 201 });
   } catch (error) {
     console.error('Error saving event:', error);
+    if (error.code === '42P01') {
+      return NextResponse.json(
+        { error: 'Events table does not exist yet. Please contact your DB administrator.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// ============================================================================
+// PUT — status-only toggle
+// ============================================================================
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id, status } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Event id is required' }, { status: 400 });
+    }
+    if (status !== 'Active' && status !== 'Inactive') {
+      return NextResponse.json({ error: 'status must be "Active" or "Inactive"' }, { status: 400 });
+    }
+
+    const result = await sql`
+      UPDATE sgs_events
+      SET record_status = ${status}
+      WHERE event_id = ${id}
+      RETURNING *
+    `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, event: result[0] });
+  } catch (error) {
+    console.error('Error toggling event status:', error);
+    if (error.code === '42P01') {
+      return NextResponse.json(
+        { error: 'Events table does not exist yet' },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+  }
+}
+
+// ============================================================================
+// DELETE — soft delete
+// ============================================================================
 
 export async function DELETE(request) {
   try {

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sql } from '../../../lib/db';
 
+// ============================================================================
+// GET — return BOTH Active + Inactive (so the toggle is possible)
+// ============================================================================
+
 export async function GET() {
   try {
     const notices = await sql`
@@ -12,8 +16,8 @@ export async function GET() {
         applicable_class,
         record_status as status
       FROM sgs_notice_board
-      WHERE record_status = 'Active'
-      ORDER BY notice_date DESC
+      WHERE record_status IN ('Active', 'Inactive')
+      ORDER BY notice_date DESC, notice_id DESC
     `;
     return NextResponse.json(notices);
   } catch (error) {
@@ -22,12 +26,15 @@ export async function GET() {
   }
 }
 
+// ============================================================================
+// POST — insert new OR update existing (id present)
+// ============================================================================
+
 export async function POST(request) {
   try {
     const body = await request.json();
     const { id, title, message, date, applicable_class } = body;
 
-    // UPDATE if id provided
     if (id) {
       const result = await sql`
         UPDATE sgs_notice_board
@@ -45,7 +52,6 @@ export async function POST(request) {
       return NextResponse.json({ success: true, notice: result[0], message: 'Notice updated successfully' });
     }
 
-    // INSERT new
     const result = await sql`
       INSERT INTO sgs_notice_board (
         notice_title, notice_text, notice_date, applicable_class, record_status
@@ -59,6 +65,45 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// ============================================================================
+// PUT — status-only toggle
+// Body: { id, status: 'Active' | 'Inactive' }
+// ============================================================================
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id, status } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Notice id is required' }, { status: 400 });
+    }
+    if (status !== 'Active' && status !== 'Inactive') {
+      return NextResponse.json({ error: 'status must be "Active" or "Inactive"' }, { status: 400 });
+    }
+
+    const result = await sql`
+      UPDATE sgs_notice_board
+      SET record_status = ${status}
+      WHERE notice_id = ${id}
+      RETURNING *
+    `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: 'Notice not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, notice: result[0] });
+  } catch (error) {
+    console.error('Error toggling notice status:', error);
+    return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+  }
+}
+
+// ============================================================================
+// DELETE — soft delete
+// ============================================================================
 
 export async function DELETE(request) {
   try {

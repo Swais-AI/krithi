@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../../components/ConfirmModal';
+import AlertModal from '../../../components/AlertModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
@@ -23,7 +24,14 @@ export default function OthersPage() {
   const [modalFor, setModalFor] = useState('notice');
   const [selectedItem, setSelectedItem] = useState(null);
   const [validationError, setValidationError] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState(null); // { id, type }
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
+
+  const showAlert = (message, variant = 'error', title = 'Error') =>
+    setAlertState({ isOpen: true, title, message, variant });
+  const closeAlert = () =>
+    setAlertState({ isOpen: false, title: '', message: '', variant: 'error' });
+
   const [formData, setFormData] = useState({
     title: '',
     message: '',
@@ -46,12 +54,7 @@ export default function OthersPage() {
         return;
       }
       const data = await response.json();
-      if (Array.isArray(data)) {
-        setNotifications(data);
-      } else {
-        console.error('Expected array but got:', data);
-        setNotifications([]);
-      }
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching notices:', error);
       setNotifications([]);
@@ -67,11 +70,7 @@ export default function OthersPage() {
         return;
       }
       const data = await response.json();
-      if (Array.isArray(data)) {
-        setEvents(data);
-      } else {
-        setEvents([]);
-      }
+      setEvents(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching events:', error);
       setEvents([]);
@@ -80,7 +79,6 @@ export default function OthersPage() {
     }
   };
 
-  // ✅ Format date to "12-Sep-2026"
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     try {
@@ -88,15 +86,12 @@ export default function OthersPage() {
       if (isNaN(d.getTime())) return dateStr;
       const day = String(d.getDate()).padStart(2, '0');
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const month = months[d.getMonth()];
-      const year = d.getFullYear();
-      return `${day}-${month}-${year}`;
+      return `${day}-${months[d.getMonth()]}-${d.getFullYear()}`;
     } catch {
       return dateStr;
     }
   };
 
-  // ✅ Today's date in YYYY-MM-DD (for min attribute)
   const getTodayDate = () => {
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -106,36 +101,24 @@ export default function OthersPage() {
   };
 
   const validateForm = () => {
-    if (!formData.title.trim()) {
-      setValidationError('Title is required');
-      return false;
-    }
-    if (!formData.message.trim()) {
-      setValidationError('Message is required');
-      return false;
-    }
-    if (!formData.date) {
-      setValidationError('Date is required');
-      return false;
-    }
+    if (!formData.title.trim()) { setValidationError('Title is required'); return false; }
+    if (!formData.message.trim()) { setValidationError('Message is required'); return false; }
+    if (!formData.date) { setValidationError('Date is required'); return false; }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selected = new Date(formData.date);
     selected.setHours(0, 0, 0, 0);
-
     if (selected < today) {
       setValidationError('Cannot create a notification with a past date');
       return false;
     }
-
     setValidationError('');
     return true;
   };
 
   const handleAdd = async () => {
     if (!validateForm()) return;
-
     const apiEndpoint = modalFor === 'notice' ? 'notices' : 'events';
     const payload : any = {
       title: formData.title,
@@ -143,15 +126,12 @@ export default function OthersPage() {
       date: formData.date,
       applicable_class: formData.applicable_class,
     };
-
     if (modalType === 'modify' && selectedItem && selectedItem.id) {
       payload.id = selectedItem.id;
     }
-
     if (modalFor === 'event') {
       payload.type = formData.type || 'event';
     }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
         method: 'POST',
@@ -165,15 +145,63 @@ export default function OthersPage() {
         resetForm();
       } else {
         const error = await response.json();
-        setValidationError(error.error || `Failed to save ${modalFor}`);
+        showAlert(error.error || `Failed to save ${modalFor}`, 'error', 'Save Failed');
       }
     } catch (error) {
       console.error(`Error saving ${modalFor}:`, error);
-      setValidationError(`Failed to save ${modalFor}`);
+      showAlert('A network error occurred.', 'error', 'Network Error');
     }
   };
 
-  // ✅ Now opens ConfirmModal instead of window.confirm
+  // ✅ Status toggle — same pattern as students/teachers
+  const handleToggleStatus = async (item) => {
+    const isNotice = activeTab === 'notifications';
+    const itemType = isNotice ? 'notice' : 'event';
+    const apiEndpoint = isNotice ? 'notices' : 'events';
+    const currentStatus = item.status || 'Active';
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+
+    // Optimistic update
+    const updateList = (list) =>
+      list.map((it) =>
+        it.id === item.id ? { ...it, status: newStatus } : it
+      );
+    if (isNotice) setNotifications((prev) => updateList(prev));
+    else setEvents((prev) => updateList(prev));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/${apiEndpoint}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, status: newStatus }),
+      });
+      if (!response.ok) {
+        // Revert
+        const revert = (list) =>
+          list.map((it) =>
+            it.id === item.id ? { ...it, status: currentStatus } : it
+          );
+        if (isNotice) setNotifications((prev) => revert(prev));
+        else setEvents((prev) => revert(prev));
+        const err = await response.json();
+        showAlert(err.error || `Failed to update ${itemType} status`, 'error', 'Update Failed');
+        return;
+      }
+      // Refresh from server to confirm
+      if (isNotice) fetchNotifications();
+      else fetchEvents();
+    } catch (error) {
+      console.error(`Toggle ${itemType} error:`, error);
+      const revert = (list) =>
+        list.map((it) =>
+          it.id === item.id ? { ...it, status: currentStatus } : it
+        );
+      if (isNotice) setNotifications((prev) => revert(prev));
+      else setEvents((prev) => revert(prev));
+      showAlert('Network error. Please try again.', 'error', 'Network Error');
+    }
+  };
+
   const handleDelete = (id, type) => {
     setDeleteTarget({ id, type });
   };
@@ -185,17 +213,14 @@ export default function OthersPage() {
       const apiEndpoint = type === 'notice' ? 'notices' : 'events';
       const response = await fetch(`${API_BASE_URL}/${apiEndpoint}?id=${id}`, { method: 'DELETE' });
       if (response.ok) {
-        if (type === 'notice') {
-          fetchNotifications();
-        } else {
-          fetchEvents();
-        }
+        if (type === 'notice') fetchNotifications();
+        else fetchEvents();
       } else {
-        alert(`Failed to delete ${type}`);
+        showAlert(`Failed to delete ${type}`, 'error', 'Delete Failed');
       }
     } catch (error) {
       console.error(`Error deleting ${type}:`, error);
-      alert('An error occurred');
+      showAlert('An error occurred while deleting.', 'error', 'Error');
     } finally {
       setDeleteTarget(null);
     }
@@ -266,7 +291,6 @@ export default function OthersPage() {
           <p className="text-white/60 text-sm sm:text-base">Manage notifications, tours, and school functions</p>
         </div>
 
-        {/* Tabs — horizontal scroll on tiny screens, stack the add button below */}
         <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6">
           <button
             onClick={() => setActiveTab('notifications')}
@@ -338,9 +362,7 @@ export default function OthersPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-white/60">Loading...</td>
-                  </tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-white/60">Loading...</td></tr>
                 ) : isDataEmpty ? (
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-white/60">
@@ -348,20 +370,29 @@ export default function OthersPage() {
                     </td>
                   </tr>
                 ) : (
-                  currentData.map((item, idx) => (
+                  currentData.map((item, idx) => {
+                    const isActive = (item.status || 'Active') === 'Active';
+                    return (
                     <tr key={item.id || idx} className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-3 sm:px-4 py-3 text-white text-xs sm:text-sm font-medium">
                         <div>{item.title || '-'}</div>
-                        {/* Show message inline on mobile since the column is hidden */}
                         <div className="md:hidden text-white/60 text-xs mt-1 line-clamp-2">{item.message || ''}</div>
                       </td>
                       <td className="hidden md:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm max-w-xs truncate">{item.message || '-'}</td>
                       <td className="px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm whitespace-nowrap">{formatDate(item.date)}</td>
                       <td className="hidden sm:table-cell px-3 sm:px-4 py-3 text-white/80 text-xs sm:text-sm">{item.applicable_class || 'all'}</td>
                       <td className="px-3 sm:px-4 py-3">
-                        <span className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-green-500/20 text-green-400 whitespace-nowrap">
-                          ● Active
-                        </span>
+                        {/* ✅ Toggle button — same UX as students/teachers */}
+                        <button
+                          onClick={() => handleToggleStatus(item)}
+                          className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition cursor-pointer ${
+                            isActive
+                              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                              : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          }`}
+                        >
+                          {isActive ? '● Active' : '○ Inactive'}
+                        </button>
                       </td>
                       <td className="px-3 sm:px-4 py-3">
                         <div className="flex gap-1.5 sm:gap-2">
@@ -380,7 +411,8 @@ export default function OthersPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -504,7 +536,6 @@ export default function OthersPage() {
         )}
       </AnimatePresence>
 
-      {/* Custom Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={!!deleteTarget}
         title={`Delete ${deleteTarget?.type === 'notice' ? 'Notice' : 'Event'}?`}
@@ -514,6 +545,14 @@ export default function OthersPage() {
         variant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <AlertModal
+        isOpen={alertState.isOpen}
+        title={alertState.title}
+        message={alertState.message}
+        variant={alertState.variant}
+        onClose={closeAlert}
       />
     </div>
   );
