@@ -20,7 +20,10 @@ function normalizePhone(phone) {
 
 function isValidEmail(email) {
   if (!email) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
+  // Same pattern as lib/validators.js — the domain must end in a top-level
+  // domain of two letters or more. The form already rejects "kishore@gmail.c"
+  // client-side; this stops it reaching the database through a direct call.
+  return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(String(email).trim());
 }
 
 /**
@@ -82,20 +85,88 @@ function buildParentsFromPayload(body) {
   return list;
 }
 
+/**
+ * Link a student to the parents in the payload, updating the records already
+ * attached to that student rather than creating new ones.
+ *
+ * This used to upsert on email alone. Because the conflict target was the
+ * email, correcting a parent's address inserted a *new* parent row, repointed
+ * the student at it and left the old record orphaned — one extra row per edit.
+ * Production picked up three orphans this way before it was spotted.
+ *
+ * The rule now is: whichever parent already occupies this slot for this student
+ * gets updated in place, email included. A slot is (relationship, position), so
+ * parent1 and parent2 stay distinct even though both are 'parent'.
+ */
 async function reconcileParents(tx, studentId, parents) {
+  // Who is already attached, in a stable order, so slot N of the payload lines
+  // up with slot N of the existing links.
+  const existing = await tx`
+    SELECT m.parent_id, m.relationship_type
+    FROM sgs_parent_student_map m
+    WHERE m.student_id = ${studentId}
+    ORDER BY m.relationship_type, m.parent_id
+  `;
+  const slots = {};
+  for (const row of existing) {
+    (slots[row.relationship_type] ||= []).push(row.parent_id);
+  }
+
   const parentRefs = [];
+  const used = {};
+
   for (const p of parents) {
-    const rows = await tx`
-      INSERT INTO sgs_parent_master (full_name, email, phone, record_status, version_no)
-      VALUES (${p.name}, ${p.email}, ${p.phone}, 'Active', 1)
-      ON CONFLICT (email) DO UPDATE
-        SET full_name = EXCLUDED.full_name,
-            phone = COALESCE(EXCLUDED.phone, sgs_parent_master.phone),
-            updated_at = CURRENT_TIMESTAMP
-      RETURNING parent_id
+    const queue = slots[p.relationship] || [];
+    const pos = (used[p.relationship] ||= 0);
+    const heldId = queue[pos];
+    used[p.relationship] = pos + 1;
+
+    // Does another parent record already own this email? If so the address
+    // belongs to them — link to that record instead of taking the address,
+    // which would breach the unique constraint.
+    const owner = await tx`
+      SELECT parent_id FROM sgs_parent_master WHERE email = ${p.email} LIMIT 1
     `;
-    if (rows.length > 0) {
-      parentRefs.push({ parent_id: rows[0].parent_id, relationship: p.relationship });
+    const ownerId = owner.length > 0 ? owner[0].parent_id : null;
+
+    let parentId;
+
+    if (heldId && (ownerId === null || ownerId === heldId)) {
+      // Normal edit: update the record this student already points at.
+      const rows = await tx`
+        UPDATE sgs_parent_master
+        SET full_name = ${p.name},
+            email = ${p.email},
+            phone = COALESCE(${p.phone}, phone),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE parent_id = ${heldId}
+        RETURNING parent_id
+      `;
+      parentId = rows.length > 0 ? rows[0].parent_id : null;
+    } else if (ownerId !== null) {
+      // The address belongs to an existing parent — a sibling's parent, say.
+      // Refresh their details and link this student to them.
+      const rows = await tx`
+        UPDATE sgs_parent_master
+        SET full_name = ${p.name},
+            phone = COALESCE(${p.phone}, phone),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE parent_id = ${ownerId}
+        RETURNING parent_id
+      `;
+      parentId = rows.length > 0 ? rows[0].parent_id : ownerId;
+    } else {
+      // Genuinely new parent.
+      const rows = await tx`
+        INSERT INTO sgs_parent_master (full_name, email, phone, record_status, version_no)
+        VALUES (${p.name}, ${p.email}, ${p.phone}, 'Active', 1)
+        RETURNING parent_id
+      `;
+      parentId = rows.length > 0 ? rows[0].parent_id : null;
+    }
+
+    if (parentId) {
+      parentRefs.push({ parent_id: parentId, relationship: p.relationship });
     }
   }
 
