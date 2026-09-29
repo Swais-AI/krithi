@@ -81,6 +81,7 @@ export async function GET() {
         is_active,
         CASE WHEN is_active = true THEN 'Active' ELSE 'Inactive' END as status
       FROM sgs_teacher_master
+      WHERE record_status IS DISTINCT FROM 'Deleted'
       ORDER BY teacher_id
     `;
 
@@ -310,8 +311,13 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
+    // Soft delete: mark the record deleted as well as inactive. Setting only
+    // is_active left record_status untouched, so the row still read as a live
+    // record everywhere else and stayed visible in the list.
     const result = await sql`
-      UPDATE sgs_teacher_master SET is_active = false
+      UPDATE sgs_teacher_master
+      SET is_active = false,
+          record_status = 'Deleted'
       WHERE teacher_id = ${id} RETURNING *
     `;
     if (result.length === 0) {
