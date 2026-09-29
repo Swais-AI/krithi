@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sql } from '../../../lib/db';
 
+// ---- Helpers -----------------------------------------------------------
+
 function toSubjectsArray(input) {
   if (input === null || input === undefined) return [];
   if (Array.isArray(input)) {
@@ -31,6 +33,34 @@ function toBigintOrNull(value) {
   if (!/^\d+$/.test(str)) return null;
   return parseInt(str, 10);
 }
+
+/**
+ * Convert a Postgres error to a user-friendly message.
+ * Never leak raw error.message to the client.
+ */
+function friendlyDbError(error) {
+  const msg = String(error?.message || '');
+  const code = error?.code;
+
+  if (code === '23505' || /duplicate key/i.test(msg)) {
+    if (msg.includes('teacher_master_email_id_key')) return 'This email is already registered to another teacher. Please use a different email address.';
+    if (msg.includes('teacher_master_pkey')) return 'A teacher with this ID already exists.';
+    return 'A duplicate record was detected. Please check the values and try again.';
+  }
+
+  if (code === '23514' || /violates check constraint/i.test(msg)) {
+    return 'One of the values does not meet the required format.';
+  }
+
+  if (code === '23503' || /foreign key/i.test(msg)) {
+    if (msg.includes('class_id')) return 'The selected class does not exist.';
+    return 'A referenced record does not exist.';
+  }
+
+  return 'Something went wrong while saving. Please try again or contact support.';
+}
+
+// ---- GET: list all teachers (Active + Inactive) ------------------------
 
 export async function GET() {
   try {
@@ -66,6 +96,8 @@ export async function GET() {
   }
 }
 
+// ---- POST: create new teacher ------------------------------------------
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -89,15 +121,31 @@ export async function POST(request) {
       );
     }
 
-    // ✅ FIX 71: Friendly duplicate check BEFORE insert
-    const dupe = await sql`
-      SELECT teacher_id, full_name FROM sgs_teacher_master WHERE teacher_id = ${teacher_id}
+    // Duplicate teacher_id check
+    const dupeId = await sql`
+      SELECT teacher_id FROM sgs_teacher_master WHERE teacher_id = ${teacher_id}
     `;
-    if (dupe.length > 0) {
+    if (dupeId.length > 0) {
       return NextResponse.json(
-        { error: `Teacher ID ${teacher_id} already exists (${dupe[0].full_name || 'Unnamed'}). Please use a different ID.` },
+        { error: `Teacher ID ${teacher_id} already exists. Please use a different ID.` },
         { status: 400 }
       );
+    }
+
+    // ✅ FIX #5: Duplicate email check (case-insensitive)
+    if (email && String(email).trim()) {
+      const dupeEmail = await sql`
+        SELECT teacher_id, full_name
+        FROM sgs_teacher_master
+        WHERE LOWER(email_id) = LOWER(${String(email).trim()})
+        LIMIT 1
+      `;
+      if (dupeEmail.length > 0) {
+        return NextResponse.json(
+          { error: `This email is already registered to teacher ${dupeEmail[0].teacher_id}${dupeEmail[0].full_name ? ` (${dupeEmail[0].full_name})` : ''}. Please use a different email address.` },
+          { status: 400 }
+        );
+      }
     }
 
     const normalizedPhone = normalizePhone(contact);
@@ -142,16 +190,14 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error adding teacher:', error);
-    // Even if a race condition sneaks past, convert dup key to a friendly error
-    if (error.code === '23505' || /duplicate key/i.test(error.message)) {
-      return NextResponse.json(
-        { error: 'A teacher with this ID already exists. Please use a different ID.' },
-        { status: 400 }
-      );
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: friendlyDbError(error) },
+      { status: 500 }
+    );
   }
 }
+
+// ---- PUT: update existing teacher OR toggle status ---------------------
 
 export async function PUT(request) {
   try {
@@ -162,6 +208,7 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Teacher ID is required' }, { status: 400 });
     }
 
+    // STATUS-ONLY TOGGLE
     if (status !== undefined && !body.name) {
       const newStatus = status === 'Active';
       const result = await sql`
@@ -176,11 +223,29 @@ export async function PUT(request) {
       return NextResponse.json({ success: true, teacher: result[0] });
     }
 
+    // ---- FULL UPDATE ----
     const {
       name, subject, qualification, class_id,
       section_1, section_2, role, is_class_teacher,
       subjects, contact, email,
     } = body;
+
+    // ✅ FIX #5: Duplicate email check (case-insensitive, exclude self)
+    if (email && String(email).trim()) {
+      const dupeEmail = await sql`
+        SELECT teacher_id, full_name
+        FROM sgs_teacher_master
+        WHERE LOWER(email_id) = LOWER(${String(email).trim()})
+          AND teacher_id != ${teacher_id}
+        LIMIT 1
+      `;
+      if (dupeEmail.length > 0) {
+        return NextResponse.json(
+          { error: `This email is already registered to teacher ${dupeEmail[0].teacher_id}${dupeEmail[0].full_name ? ` (${dupeEmail[0].full_name})` : ''}. Please use a different email address.` },
+          { status: 400 }
+        );
+      }
+    }
 
     const normalizedPhone = normalizePhone(contact);
     if (contact && !normalizedPhone) {
@@ -231,9 +296,14 @@ export async function PUT(request) {
     return NextResponse.json({ success: true, teacher: result[0] });
   } catch (error) {
     console.error('Error updating teacher:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: friendlyDbError(error) },
+      { status: 500 }
+    );
   }
 }
+
+// ---- DELETE: soft-delete (set is_active = false) -----------------------
 
 export async function DELETE(request) {
   try {
@@ -250,6 +320,9 @@ export async function DELETE(request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting teacher:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: friendlyDbError(error) },
+      { status: 500 }
+    );
   }
 }

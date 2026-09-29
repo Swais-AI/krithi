@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ModifyLookupModal from '../../../components/ModifyLookupModal';
 import AlertModal from '../../../components/AlertModal';
-import { isValidPhone, normalizePhone } from '../../../lib/validators';
+import { isValidName, isValidEmail, isValidPhone, normalizePhone } from '../../../lib/validators';
 import { formatClassName } from '../../../lib/format-class-name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
@@ -78,7 +78,7 @@ export default function TeachersPage() {
     }
   };
 
-  const validateForm = () => {
+    const validateForm = () => {
     if (!formData.teacher_id.trim()) {
       setValidationError('Teacher ID is required');
       return false;
@@ -91,24 +91,67 @@ export default function TeachersPage() {
       setValidationError('Teacher Name is required');
       return false;
     }
+    // ✅ FIX #2: Name must be letters, spaces, dots, hyphens, apostrophes only
+    if (!isValidName(formData.full_name)) {
+      setValidationError('Teacher Name can only contain letters, spaces, dots, hyphens and apostrophes');
+      return false;
+    }
+
     if (!formData.email_id.trim()) {
       setValidationError('Email is required');
       return false;
     }
-    if (formData.email_id && !formData.email_id.includes('@')) {
-      setValidationError('Please enter a valid email address');
+    // ✅ FIX #2: Proper email format (replaces weak '@' check)
+    if (!isValidEmail(formData.email_id)) {
+      setValidationError('Please enter a valid email address (e.g., name@domain.com)');
       return false;
     }
+
     if (formData.phone && formData.phone.trim() !== '') {
       if (!isValidPhone(formData.phone)) {
         setValidationError('Enter a valid 10-digit mobile number (starting 6-9)');
         return false;
       }
     }
+
+    // ✅ FIX #2: Subject — if provided, must be valid name characters
+    if (formData.subject_name && !isValidName(formData.subject_name)) {
+      setValidationError('Subject can only contain letters, spaces, dots, hyphens and apostrophes');
+      return false;
+    }
+
+    // ✅ FIX #2: Qualification — if provided, must be valid name characters
+    if (formData.qualification && !isValidName(formData.qualification)) {
+      setValidationError('Qualification can only contain letters, spaces, dots, hyphens and apostrophes');
+      return false;
+    }
+
+    // ✅ FIX #2: Section 1 — if provided, single letter A-Z
+    if (formData.section_1 && !/^[A-Za-z]$/.test(String(formData.section_1).trim())) {
+      setValidationError('Section 1 must be a single letter (A-Z)');
+      return false;
+    }
+
+    // ✅ FIX #2: Section 2 — if provided, single letter A-Z
+    if (formData.section_2 && !/^[A-Za-z]$/.test(String(formData.section_2).trim())) {
+      setValidationError('Section 2 must be a single letter (A-Z)');
+      return false;
+    }
+
+    // ✅ FIX #2: Subjects list — if provided, each item must be valid name characters
+    if (formData.subjects && String(formData.subjects).trim()) {
+      const parts = String(formData.subjects).split(',').map(s => s.trim()).filter(Boolean);
+      for (const part of parts) {
+        if (!isValidName(part)) {
+          setValidationError(`Invalid subject: "${part}". Only letters, spaces, dots, hyphens and apostrophes allowed.`);
+          return false;
+        }
+      }
+    }
+
     setValidationError('');
     return true;
   };
-
   const handleAdd = async () => {
     if (!validateForm()) { scrollToTop(); return; }
     try {

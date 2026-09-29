@@ -9,7 +9,6 @@ import AlertModal from './AlertModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
 
-// Always show all four sections, for every class, regardless of what's in the DB.
 const SECTION_OPTIONS = ['A', 'B', 'C', 'D'];
 
 const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark' }) => {
@@ -148,14 +147,19 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
       if (!formData.parent1_phone) e.parent1_phone = 'Parent 1 Phone is required';
       else if (!isValidPhone(formData.parent1_phone))
         e.parent1_phone = 'Enter a valid 10-digit mobile number';
+
+      // ✅ FIX #1: strict email validation for Parent 1
       if (formData.parent1_email && !isValidEmail(formData.parent1_email))
-        e.parent1_email = 'Please enter a valid email address';
+        e.parent1_email = 'Please enter a valid email address (e.g., name@domain.com)';
+
       if (formData.parent2_name && !isValidName(formData.parent2_name))
         e.parent2_name = 'Name can only contain letters, spaces, dots, hyphens and apostrophes';
       if (formData.parent2_phone && !isValidPhone(formData.parent2_phone))
         e.parent2_phone = 'Enter a valid 10-digit mobile number';
+
+      // ✅ FIX #1: strict email validation for Parent 2
       if (formData.parent2_email && !isValidEmail(formData.parent2_email))
-        e.parent2_email = 'Please enter a valid email address';
+        e.parent2_email = 'Please enter a valid email address (e.g., name@domain.com)';
     }
 
     if (stepNumber === 3) {
@@ -247,7 +251,6 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
   const borderColor = isDark ? 'border-white/10' : 'border-gray-200';
   const placeholderColor = isDark ? 'placeholder-white/60' : 'placeholder-gray-400';
 
-  // ✅ Always show A, B, C, D — for every class. Preserve legacy value if editing.
   const sectionsForSelectedClass = (() => {
     if (formData.section && !SECTION_OPTIONS.includes(formData.section)) {
       return [formData.section, ...SECTION_OPTIONS];
@@ -453,7 +456,7 @@ const StudentFormWizard = ({ isOpen, onClose, onSuccess, editData, theme = 'dark
                             value={formData.parent1_email}
                             onChange={handleChange}
                             className={`w-full px-3 py-2 mt-1 ${inputBg} border ${errors.parent1_email ? 'border-red-500' : inputBorder} rounded-lg ${inputText} ${placeholderColor} focus:outline-none focus:border-blue-500`}
-                            placeholder="parent@email.com"
+                            placeholder="parent1@email.com"
                           />
                           {errors.parent1_email && <p className="mt-1 text-xs text-red-500">{errors.parent1_email}</p>}
                         </div>
