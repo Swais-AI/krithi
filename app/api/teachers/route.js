@@ -122,6 +122,14 @@ export async function POST(request) {
       );
     }
 
+    // ✅ Gmail-only check (added — must come before the dupe check so it fires first)
+    if (!/^[^\s@]+@gmail\.com$/i.test(String(email).trim())) {
+      return NextResponse.json(
+        { error: 'Teacher email must be a @gmail.com address.' },
+        { status: 400 }
+      );
+    }
+
     // Duplicate teacher_id check
     const dupeId = await sql`
       SELECT teacher_id FROM sgs_teacher_master WHERE teacher_id = ${teacher_id}
@@ -230,6 +238,14 @@ export async function PUT(request) {
       section_1, section_2, role, is_class_teacher,
       subjects, contact, email,
     } = body;
+
+    // ✅ Gmail-only check (added — before dupe check)
+    if (!email || !String(email).trim() || !/^[^\s@]+@gmail\.com$/i.test(String(email).trim())) {
+      return NextResponse.json(
+        { error: 'Teacher email must be a @gmail.com address.' },
+        { status: 400 }
+      );
+    }
 
     // ✅ FIX #5: Duplicate email check (case-insensitive, exclude self)
     if (email && String(email).trim()) {

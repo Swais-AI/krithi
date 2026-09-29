@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ModifyLookupModal from '../../../components/ModifyLookupModal';
 import AlertModal from '../../../components/AlertModal';
-import { isValidName, isValidEmail, isValidPhone, normalizePhone } from '../../../lib/validators';
+import { isValidName, isValidEmail, isGmailEmail, isValidPhone, normalizePhone } from '../../../lib/validators';
 import { formatClassName } from '../../../lib/format-class-name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/admin/api';
@@ -24,7 +24,7 @@ export default function TeachersPage() {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
-    const [lookupOpen, setLookupOpen] = useState(false);
+  const [lookupOpen, setLookupOpen] = useState(false);
   const modalBodyRef = useRef(null);
   const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
 
@@ -78,7 +78,7 @@ export default function TeachersPage() {
     }
   };
 
-    const validateForm = () => {
+  const validateForm = () => {
     if (!formData.teacher_id.trim()) {
       setValidationError('Teacher ID is required');
       return false;
@@ -91,7 +91,7 @@ export default function TeachersPage() {
       setValidationError('Teacher Name is required');
       return false;
     }
-    // ✅ FIX #2: Name must be letters, spaces, dots, hyphens, apostrophes only
+    // ✅ Name must be letters, spaces, dots, hyphens, apostrophes only
     if (!isValidName(formData.full_name)) {
       setValidationError('Teacher Name can only contain letters, spaces, dots, hyphens and apostrophes');
       return false;
@@ -101,9 +101,14 @@ export default function TeachersPage() {
       setValidationError('Email is required');
       return false;
     }
-    // ✅ FIX #2: Proper email format (replaces weak '@' check)
+    // ✅ Proper email format
     if (!isValidEmail(formData.email_id)) {
       setValidationError('Please enter a valid email address (e.g., name@domain.com)');
+      return false;
+    }
+    // ✅ Teacher email must be @gmail.com only
+    if (!isGmailEmail(formData.email_id)) {
+      setValidationError('Teacher email must be a @gmail.com address');
       return false;
     }
 
@@ -114,31 +119,31 @@ export default function TeachersPage() {
       }
     }
 
-    // ✅ FIX #2: Subject — if provided, must be valid name characters
+    // ✅ Subject — if provided, must be valid name characters
     if (formData.subject_name && !isValidName(formData.subject_name)) {
       setValidationError('Subject can only contain letters, spaces, dots, hyphens and apostrophes');
       return false;
     }
 
-    // ✅ FIX #2: Qualification — if provided, must be valid name characters
+    // ✅ Qualification — if provided, must be valid name characters
     if (formData.qualification && !isValidName(formData.qualification)) {
       setValidationError('Qualification can only contain letters, spaces, dots, hyphens and apostrophes');
       return false;
     }
 
-    // ✅ FIX #2: Section 1 — if provided, single letter A-Z
+    // ✅ Section 1 — if provided, single letter A-Z
     if (formData.section_1 && !/^[A-Za-z]$/.test(String(formData.section_1).trim())) {
       setValidationError('Section 1 must be a single letter (A-Z)');
       return false;
     }
 
-    // ✅ FIX #2: Section 2 — if provided, single letter A-Z
+    // ✅ Section 2 — if provided, single letter A-Z
     if (formData.section_2 && !/^[A-Za-z]$/.test(String(formData.section_2).trim())) {
       setValidationError('Section 2 must be a single letter (A-Z)');
       return false;
     }
 
-    // ✅ FIX #2: Subjects list — if provided, each item must be valid name characters
+    // ✅ Subjects list — if provided, each item must be valid name characters
     if (formData.subjects && String(formData.subjects).trim()) {
       const parts = String(formData.subjects).split(',').map(s => s.trim()).filter(Boolean);
       for (const part of parts) {
@@ -152,6 +157,7 @@ export default function TeachersPage() {
     setValidationError('');
     return true;
   };
+
   const handleAdd = async () => {
     if (!validateForm()) { scrollToTop(); return; }
     try {
@@ -559,7 +565,6 @@ export default function TeachersPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                {/* ✅ FIX 72: Teacher ID is now read-only */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">
                     Teacher ID * <span className="text-xs text-white/40">(auto-generated, read-only)</span>
@@ -604,7 +609,6 @@ export default function TeachersPage() {
                   />
                 </div>
 
-                {/* ✅ FIX 73: Class dropdown uses grouped classes */}
                 <div>
                   <label className="text-white/70 text-sm block mb-1">Class</label>
                   <select
@@ -667,10 +671,12 @@ export default function TeachersPage() {
                   <p className="text-xs text-white/40 mt-1">10 digits, starting with 6-9</p>
                 </div>
                 <div>
-                  <label className="text-white/70 text-sm block mb-1">Email *</label>
+                  <label className="text-white/70 text-sm block mb-1">
+                    Email * <span className="text-xs text-white/40">(gmail only)</span>
+                  </label>
                   <input
                     type="email"
-                    placeholder="teacher@email.com"
+                    placeholder="teacher@gmail.com"
                     value={formData.email_id}
                     onChange={(e) => setFormData({...formData, email_id: e.target.value})}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-white/40"
@@ -748,7 +754,8 @@ export default function TeachersPage() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-        <AlertModal
+
+      <AlertModal
         isOpen={alertState.isOpen}
         title={alertState.title}
         message={alertState.message}
